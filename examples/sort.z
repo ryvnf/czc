@@ -1,0 +1,73 @@
+type file
+stdin^ file
+fgets(^ char, int, ^ file)^ char
+printf(^ char, ...) int
+strdup(^ char)^ char
+strcmp(^ char, ^ char) int
+malloc(size)^ void
+
+type line { s^ char, next^ line }
+
+main() int {
+    lines^ line = null
+    tailp^^ line = ^lines;
+
+    while fgets(s[1024] char, sizeof s, stdin) != null {
+        tailp^ = malloc(sizeof tailp^^)
+        tailp^^.s = strdup(s)
+        tailp = ^tailp^^.next
+    }
+    tailp^ = null
+
+    sort_lines(^lines)
+    print_lines(lines)
+}
+
+print_lines(lines^ line) void {
+    for i^ line = lines; i != null; i = i^.next {
+        printf("%s", i^.s)
+    }
+}
+
+sort_lines(lines^^ line) void {
+    left^ line = lines^
+
+    if left == null || left^.next == null { return }
+
+    mid^ line = find_mid(left)
+    right^ line = mid^.next
+    mid^.next = null
+
+    sort_lines(^left)
+    sort_lines(^right)
+
+    lines^ = merge_lines(left, right)
+}
+
+find_mid(lines^ line)^ line {
+    p^ line = lines
+    q^ line = lines
+
+    while q != null && q^.next != null && q^.next^.next != null {
+        p = p^.next
+        q = q^.next^.next
+    }
+
+    return p
+}
+
+merge_lines(a^ line, b^ line)^ line {
+    if a == null { return b }
+    if b == null { return a }
+
+    start^ line
+    if strcmp(a^.s, b^.s) < 0 {
+        start = a
+        a^.next = merge_lines(a^.next, b)
+    } else {
+        start = b
+        b^.next = merge_lines(a, b^.next)
+    }
+
+    return start
+}
