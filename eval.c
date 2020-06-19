@@ -531,6 +531,7 @@ struct type *eval_name_type(struct type *t, struct ast *ast)
         return type_dup(type, LVAL_TYPE_FLAG);
     } else if (sym->tag == ALIAS_SYM) {
         struct expr expr = eval_expr(t, ((struct alias_sym *)sym)->ast);
+        expr.rope = add_paren(expr.rope);
         return expr.type;
     }
 
