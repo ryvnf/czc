@@ -146,7 +146,7 @@ struct rope *decl_to_c(struct decl_sym *decl)
 
 struct rope *expr_stmt_to_c(struct ast *ast)
 {
-    struct expr expr = eval_expr(ast);
+    struct expr expr = eval_expr(NULL, ast);
     if (ast->tag == DECL)
         return NULL;
     return rope_new_tree(expr.rope, semi_rope);
@@ -171,7 +171,7 @@ struct rope *if_stmt_to_c(struct ast *ast)
 
     push_scope();
 
-    struct expr expr = eval_expr(expr_ast);
+    struct expr expr = eval_expr(NULL, expr_ast);
     if (!is_bool_type(expr.type))
         fatal(-1, "condition has to be of boolean type");
 
@@ -200,7 +200,7 @@ struct rope *while_stmt_to_c(struct ast *ast)
 
     push_scope();
 
-    struct expr expr = eval_expr(expr_ast);
+    struct expr expr = eval_expr(NULL, expr_ast);
     if (!is_bool_type(expr.type))
         fatal(ast->line, "condition has to be of boolean type");
 
@@ -228,7 +228,7 @@ struct rope *do_while_stmt_to_c(struct ast *ast)
     rope = rope_new_tree(rope, block_to_c(block_ast));
     zc_loop_level--;
 
-    struct expr expr = eval_expr(expr_ast);
+    struct expr expr = eval_expr(NULL, expr_ast);
     if (!is_bool_type(expr.type))
         fatal(ast->line, "condition has to be of boolean type");
 
@@ -252,7 +252,7 @@ struct rope *for_stmt_to_c(struct ast *ast)
     push_scope();
 
     if (init_expr_ast != NULL) {
-        struct expr init_expr = eval_expr(init_expr_ast);
+        struct expr init_expr = eval_expr(NULL, init_expr_ast);
         rope = rope_new_tree(rope, init_expr.rope);
     }
     rope = rope_new_tree(rope, semi_rope);
@@ -260,7 +260,7 @@ struct rope *for_stmt_to_c(struct ast *ast)
     if (cond_expr_ast != NULL) {
         rope = rope_new_tree(rope, sp_rope);
 
-        struct expr cond_expr = eval_expr(cond_expr_ast);
+        struct expr cond_expr = eval_expr(NULL, cond_expr_ast);
         if (!is_bool_type(cond_expr.type))
             fatal(ast->line, "condition has to be of boolean type");
 
@@ -271,7 +271,7 @@ struct rope *for_stmt_to_c(struct ast *ast)
     if (update_expr_ast != NULL) {
         rope = rope_new_tree(rope, sp_rope);
 
-        struct expr update_expr = eval_expr(update_expr_ast);
+        struct expr update_expr = eval_expr(NULL, update_expr_ast);
         rope = rope_new_tree(rope, update_expr.rope);
     }
     rope = rope_new_tree(rope, rparen_sp_rope);
@@ -295,7 +295,7 @@ struct rope *return_stmt_to_c(struct ast *ast)
         return return_semi_rope;
     }
 
-    struct expr expr = eval_expr(expr_ast);
+    struct expr expr = eval_expr(zc_func_ret_type, expr_ast);
 
     if (zc_func_ret_type == void_type)
         fatal(ast->line, "return with value in function returning void");
@@ -525,68 +525,23 @@ struct rope *func_def_to_c(struct ast *ast)
 
 struct rope *init_ast_to_c(struct type *type, struct ast *init_ast, size_t nest_level)
 {
-    struct rope *rope;
+    struct expr expr = eval_expr(type, init_ast);
 
-    if (init_ast->tag == EXPR_LIST) {
-        size_t n_asts;
-        struct ast **asts = ast_asts(init_ast, &n_asts);
+    // In C ',' and '?:' operators have lower precedence than '='.  Should
+    // probably be solved in a cleaner way in the future, until then this
+    // works.
+    if (init_ast->tag == COMMA_EXPR || init_ast->tag == COND_EXPR)
+        expr.rope = add_paren(expr.rope);
 
-        rope = lcurly_sp_rope;
-        nest_level++;
+    struct type *got_type = target_type(type, expr.type);
 
-        if (type_type(type->tag) == ARRAY_TYPE_FLAG) {
-            size_t len = array_type(type)->len;
-            struct type *elem_type = array_type(type)->of;
+    if (got_type == NULL)
+        fatal(init_ast->line, "invalid type for initializer");
 
-            if (n_asts > len)
-                fatal(init_ast->line, "excess elements in initializer");
+    if (!type_equals(got_type, type))
+        fatal(init_ast->line, "invalid type for initializer");
 
-            for (size_t i = 0; i < n_asts; i++) {
-                rope = rope_new_tree(rope, init_ast_to_c(elem_type, asts[i], nest_level));
-                if (i != n_asts - 1)
-                    rope = rope_new_tree(rope, comma_sp_rope);
-                else
-                    rope = rope_new_tree(rope, sp_rope);
-            }
-        } else if (type_type(type->tag) == STRUCT_TYPE_FLAG) {
-            size_t n_fields = struct_type(type)->n_fields;
-            struct field *fields = struct_type(type)->fields;
-
-            if (n_asts > n_fields)
-                fatal(init_ast->line, "excess elements in initializer");
-
-            for (size_t i = 0; i < n_asts; i++) {
-                rope = rope_new_tree(rope, init_ast_to_c(fields[i].type, asts[i], nest_level));
-                if (i != n_asts - 1)
-                    rope = rope_new_tree(rope, comma_sp_rope);
-                else
-                    rope = rope_new_tree(rope, sp_rope);
-            }
-        }
-
-        nest_level--;
-        rope = rope_new_tree(rope, rcurly_rope);
-
-    } else {
-        struct expr expr = eval_expr(init_ast);
-
-        // In C ',' and '?:' operators have lower precedence than '='.  Should
-        // probably be solved in a cleaner way in the future, until then this
-        // works.
-        if (init_ast->tag == COMMA_EXPR || init_ast->tag == COND_EXPR)
-            expr.rope = add_paren(expr.rope);
-
-        struct type *got_type = target_type(type, expr.type);
-
-        if (got_type == NULL)
-            fatal(init_ast->line, "invalid type for initializer");
-
-        if (!type_equals(got_type, type))
-            fatal(init_ast->line, "invalid type for initializer");
-
-        rope = expr.rope;
-    }
-    return rope;
+    return expr.rope;
 }
 
 struct rope *data_def_to_c(struct ast *ast)

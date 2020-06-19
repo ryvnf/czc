@@ -227,6 +227,7 @@ static struct ast *parse_expr_list(struct parse *parse)
 /* primary_expr : ident
  *              | ident type
  *              | constant
+ *              | '{' init_list '}'
  */
 static struct ast *parse_primary_expr(struct parse *parse)
 {
@@ -268,6 +269,14 @@ static struct ast *parse_primary_expr(struct parse *parse)
         }
         case '(': {
             return parse_enclosed(parse, '(', parse_expr, ')', false);
+        }
+        case '{': {
+            struct ast *ast = parse_enclosed(parse, '{', parse_expr_list, '}', false);
+            if (ast == NULL)
+                return NULL;
+
+            ast->tag = INIT_EXPR;
+            return ast;
         }
     }
     return NULL;
@@ -785,7 +794,9 @@ static struct ast *parse_for_stmt(struct parse *parse)
     if (!expect(parse, ';'))
         goto err2;
 
-    struct ast *update_expr = parse_expr(parse);
+    struct ast *update_expr = NULL;
+    if (peek_tok(parse)->type != '{')
+        update_expr = parse_expr(parse);
 
     struct ast *block = parse_block(parse);
     if (block == NULL)
@@ -1008,7 +1019,7 @@ static struct ast *parse_block(struct parse *parse)
 static struct ast *parse_init_list(struct parse *parse)
 {
     int line = get_linenr(parse);
-    return ast_new_list(line, EXPR_LIST, parse_list(parse, ',', parse_init));
+    return ast_new_list(line, INIT_EXPR, parse_list(parse, ',', parse_init));
 }
 
 static struct ast *parse_init(struct parse *parse)

@@ -1,7 +1,5 @@
 #include "zc.h"
 
-struct expr eval_expr(struct ast *ast);
-
 const char *op_to_name(enum ast_tag tag)
 {
     switch (tag) {
@@ -220,11 +218,17 @@ struct type *target_type(struct type *want, struct type *b)
     if (is_ptr_type(want) && is_ptr_type(b) && (is_void_type(ptr_type(b)->to)))
         return want;
 
-    if ((is_int_type(b) && want->tag == INT_CONST_TYPE) ||
-            (is_float_type(b) && want->tag == FLOAT_CONST_TYPE))
-        return b;
+    // TODO: Is this neccessary?
+    //if ((is_int_type(b) && want->tag == INT_CONST_TYPE) ||
+    //        (is_float_type(b) && want->tag == FLOAT_CONST_TYPE))
+    //    return b;
 
     if (is_ptr_type(b) && is_ptr_type(want) && (is_void_type(ptr_type(want)->to)))
+        return want;
+
+    // pointer decay
+    if (is_ptr_type(want) && is_array_type(b) &&
+            type_equals(ptr_type(want)->to, array_type(b)->of))
         return want;
 
     if (type_equals(want, b))
@@ -267,11 +271,11 @@ void require_lval(struct ast *ast, struct type *type)
         not_lval(ast);
 }
 
-struct type *eval_cond_type(struct ast *ast)
+struct type *eval_cond_type(struct type *t, struct ast *ast)
 {
-    struct type *cond_type = eval_type(ast_ast(ast, 0));
-    struct type *then_type = eval_type(ast_ast(ast, 1));
-    struct type *else_type = eval_type(ast_ast(ast, 2));
+    struct type *cond_type = eval_type(NULL, ast_ast(ast, 0));
+    struct type *then_type = eval_type(t, ast_ast(ast, 1));
+    struct type *else_type = eval_type(t, ast_ast(ast, 2));
 
     require_type(ast, cond_type, BOOL_TYPE);
 
@@ -284,8 +288,8 @@ struct type *eval_cond_type(struct ast *ast)
 
 struct type *eval_binop_type(struct ast *ast, enum ast_tag accept)
 {
-    struct type *lhs_type = eval_type(ast_ast(ast, 0));
-    struct type *rhs_type = eval_type(ast_ast(ast, 1));
+    struct type *lhs_type = eval_type(NULL, ast_ast(ast, 0));
+    struct type *rhs_type = eval_type(NULL, ast_ast(ast, 1));
     struct type *type = common_type(lhs_type, rhs_type);
     if (type == NULL)
         incompatible_type(ast);
@@ -296,8 +300,8 @@ struct type *eval_binop_type(struct ast *ast, enum ast_tag accept)
 
 struct type *eval_relop_type(struct ast *ast, enum ast_tag accept)
 {
-    struct type *lhs_type = eval_type(ast_ast(ast, 0));
-    struct type *rhs_type = eval_type(ast_ast(ast, 1));
+    struct type *lhs_type = eval_type(NULL, ast_ast(ast, 0));
+    struct type *rhs_type = eval_type(NULL, ast_ast(ast, 1));
     struct type *type = common_type(lhs_type, rhs_type);
     if (type == NULL)
         incompatible_type(ast);
@@ -308,7 +312,7 @@ struct type *eval_relop_type(struct ast *ast, enum ast_tag accept)
 
 struct type *eval_unop_type(struct ast *ast, enum ast_tag accept, bool lval_op)
 {
-    struct type *type = eval_type(ast_ast(ast, 0));
+    struct type *type = eval_type(NULL, ast_ast(ast, 0));
 
     require_type(ast, type, accept);
     if (lval_op)
@@ -318,8 +322,8 @@ struct type *eval_unop_type(struct ast *ast, enum ast_tag accept, bool lval_op)
 
 struct type *eval_add_type(struct ast *ast)
 {
-    struct type *lhs_type = ptr_decay(eval_type(ast_ast(ast, 0)));
-    struct type *rhs_type = ptr_decay(eval_type(ast_ast(ast, 1)));
+    struct type *lhs_type = ptr_decay(eval_type(NULL, ast_ast(ast, 0)));
+    struct type *rhs_type = ptr_decay(eval_type(NULL, ast_ast(ast, 1)));
 
     if (is_ptr_type(lhs_type) && is_int_type(rhs_type))
         return lhs_type;
@@ -337,8 +341,8 @@ struct type *eval_add_type(struct ast *ast)
 
 struct type *eval_sub_type(struct ast *ast)
 {
-    struct type *lhs_type = ptr_decay(eval_type(ast_ast(ast, 0)));
-    struct type *rhs_type = ptr_decay(eval_type(ast_ast(ast, 1)));
+    struct type *lhs_type = ptr_decay(eval_type(NULL, ast_ast(ast, 0)));
+    struct type *rhs_type = ptr_decay(eval_type(NULL, ast_ast(ast, 1)));
 
     if (is_ptr_type(lhs_type) && is_int_type(rhs_type))
         return type_dup(lhs_type, 0);
@@ -360,13 +364,13 @@ struct type *eval_sub_type(struct ast *ast)
 
 struct type *eval_asgn_type(struct ast *ast)
 {
-    struct type *lhs_type = eval_type(ast_ast(ast, 0));
+    struct type *lhs_type = eval_type(NULL, ast_ast(ast, 0));
     require_lval(ast, lhs_type);
 
     struct type *type;
     switch (ast->tag) {
         case ASGN_EXPR:
-            type = target_type(lhs_type, ptr_decay(eval_type(ast_ast(ast, 1))));
+            type = target_type(lhs_type, eval_type(lhs_type, ast_ast(ast, 1)));
             if (type == NULL)
                 incompatible_type(ast);
 
@@ -400,7 +404,7 @@ struct type *eval_asgn_type(struct ast *ast)
 
 struct type *eval_ref_type(struct ast *ast)
 {
-    struct type *type = eval_type(ast_ast(ast, 0));
+    struct type *type = eval_type(NULL, ast_ast(ast, 0));
     require_lval(ast, type);
 
     return new_ptr_type(type);
@@ -408,7 +412,7 @@ struct type *eval_ref_type(struct ast *ast)
 
 struct type *eval_deref_type(struct ast *ast)
 {
-    struct type *type = ptr_decay(eval_type(ast_ast(ast, 0)));
+    struct type *type = ptr_decay(eval_type(NULL, ast_ast(ast, 0)));
     require_type(ast, type, PTR_TYPE);
 
     return type_dup(ptr_type(type)->to, LVAL_TYPE_FLAG);
@@ -416,7 +420,7 @@ struct type *eval_deref_type(struct ast *ast)
 
 struct type *eval_sizeof_type(struct ast *ast)
 {
-    struct type *type = eval_type(ast_ast(ast, 0));
+    struct type *type = eval_type(NULL, ast_ast(ast, 0));
 
     require_type(ast, type, ~(VOID_TYPE_FLAG | FUNC_TYPE_FLAG));
 
@@ -425,16 +429,16 @@ struct type *eval_sizeof_type(struct ast *ast)
 
 struct type *eval_cast_type(struct ast *ast)
 {
-    eval_type(ast_ast(ast, 0));
     struct type *rhs_type = type_from_ast(ast_ast(ast, 1));
+    eval_type(rhs_type, ast_ast(ast, 0));
 
     return type_dup(rhs_type, 0);
 }
 
 struct type *eval_subscr_type(struct ast *ast)
 {
-    struct type *lhs_type = ptr_decay(eval_type(ast_ast(ast, 0)));
-    struct type *rhs_type = ptr_decay(eval_type(ast_ast(ast, 1)));
+    struct type *lhs_type = ptr_decay(eval_type(NULL, ast_ast(ast, 0)));
+    struct type *rhs_type = ptr_decay(eval_type(NULL, ast_ast(ast, 1)));
 
     if (is_ptr_type(lhs_type) && is_int_type(rhs_type))
         return type_dup(ptr_type(lhs_type)->to, LVAL_TYPE_FLAG);
@@ -448,7 +452,7 @@ struct type *eval_subscr_type(struct ast *ast)
 
 struct type *eval_call_type(struct ast *ast)
 {
-    struct type *called_type = eval_type(ast_ast(ast, 0));
+    struct type *called_type = eval_type(NULL, ast_ast(ast, 0));
     require_type(ast, called_type, FUNC_TYPE_FLAG);
 
     struct func_type *called_func_type = func_type(called_type);
@@ -465,13 +469,10 @@ struct type *eval_call_type(struct ast *ast)
         fatal(ast->line, "invalid number of arguments");
 
     for (size_t i = 0; i < n_param_types; i++) {
-        struct type *got_type = ptr_decay(eval_type(arg_asts[i]));
+        struct type *got_type = eval_type(param_types[i], arg_asts[i]);
         struct type *type = target_type(param_types[i], got_type);
 
-        if (type == NULL)
-            fatal(ast->line, "invalid type for argument %zu in function call", i + 1);
-
-        if (!type_equals(param_types[i], type))
+        if (type == NULL || !type_equals(param_types[i], type))
             fatal(ast->line, "invalid type for argument %zu in function call", i + 1);
     }
 
@@ -482,7 +483,7 @@ struct type *eval_member_type(struct ast *ast)
 {
     struct ast *lhs_ast = ast_ast(ast, 0);
     struct ast *rhs_ast = ast_ast(ast, 1);
-    struct type *lhs_type = eval_type(lhs_ast);
+    struct type *lhs_type = eval_type(NULL, lhs_ast);
     const char *member_id = ast_s(rhs_ast);
 
     if (type_type(lhs_type->tag) != STRUCT_TYPE_FLAG)
@@ -514,7 +515,7 @@ struct type *eval_str_lit_type(struct ast *ast)
     return new_array_type(char_type, n_chars + 1);
 }
 
-struct type *eval_name_type(struct ast *ast)
+struct type *eval_name_type(struct type *t, struct ast *ast)
 {
     const char *name = ast_s(ast);
 
@@ -529,7 +530,7 @@ struct type *eval_name_type(struct ast *ast)
             fatal(ast->line, "undeclared identifier '%s'", name);
         return type_dup(type, LVAL_TYPE_FLAG);
     } else if (sym->tag == ALIAS_SYM) {
-        struct expr expr = eval_expr(((struct alias_sym *)sym)->ast);
+        struct expr expr = eval_expr(t, ((struct alias_sym *)sym)->ast);
         return expr.type;
     }
 
@@ -550,20 +551,59 @@ struct type *eval_decl_type(struct ast *ast)
         scope_add_sym(current_scope, name, sym);
     }
 
-    return eval_name_type(name_ast);
+    return eval_name_type(NULL, name_ast);
 }
 
-struct type *eval_type(struct ast *ast)
+struct type *eval_init_type(struct type *t, struct ast *ast)
+{
+    size_t n_childs;
+    struct ast **childs = ast_asts(ast, &n_childs);
+
+    if (is_array_type(t)) {
+        struct array_type *a_t = array_type(t);
+
+        if (a_t->len < n_childs)
+            fatal(ast->line, "excess elements in array initializer");
+
+        for (size_t i = 0; i < n_childs; i++) {
+            struct type *got_type = eval_type(a_t->of, childs[i]);
+            struct type *type = target_type(a_t->of, got_type);
+
+            if (type == NULL || !type_equals(a_t->of, type))
+                fatal(ast->line, "invalid type in array initializer");
+        }
+    } else if (is_struct_type(t)) {
+        struct struct_type *s_t = struct_type(t);
+
+        if (s_t->n_fields < n_childs)
+            fatal(ast->line, "excess elements in struct initializer");
+
+        for (size_t i = 0; i < n_childs; i++) {
+            struct type *field_type = s_t->fields[i].type;
+            struct type *got_type = eval_type(field_type, childs[i]);
+            struct type *type = target_type(field_type, got_type);
+
+            if (type == NULL || !type_equals(field_type, type))
+                fatal(ast->line, "invalid type in struct initializer");
+        }
+    } else {
+        fatal(ast->line, "invalid type");
+    }
+
+    return type_dup(t, 0);
+}
+
+struct type *eval_type(struct type *t, struct ast *ast)
 {
     struct type *type;
     switch (ast->tag) {
         case COMMA_EXPR:
-            eval_type(ast_ast(ast, 0));
-            type = eval_type(ast_ast(ast, 1));
+            eval_type(NULL, ast_ast(ast, 0));
+            type = eval_type(t, ast_ast(ast, 1));
             break;
 
         case COND_EXPR:
-            type = eval_cond_type(ast);
+            type = eval_cond_type(t, ast);
             break;
 
         case ASGN_EXPR:
@@ -694,11 +734,15 @@ struct type *eval_type(struct ast *ast)
             break;
 
         case NAME:
-            type = eval_name_type(ast);
+            type = eval_name_type(t, ast);
             break;
 
         case DECL:
             type = eval_decl_type(ast);
+            break;
+
+        case INIT_EXPR:
+            type = eval_init_type(t, ast);
             break;
     }
 
@@ -867,7 +911,7 @@ size_t eval_size(struct ast *ast)
             return -eval_size(ast_ast(ast, 0));
 
         case SIZEOF_EXPR:
-            return sizeof_type(ast->line, eval_type(ast_ast(ast, 0)));
+            return sizeof_type(ast->line, eval_type(NULL, ast_ast(ast, 0)));
 
         case INT_CONST:
             return ast_i(ast);
@@ -897,12 +941,86 @@ size_t eval_size(struct ast *ast)
     return 0;
 }
 
+struct expr eval_asgn_expr(struct ast *ast)
+{
+    struct ast *lhs_ast = ast_ast(ast, 0);
+    struct ast *rhs_ast = ast_ast(ast, 1);
+    struct expr lhs_expr = eval_expr(NULL, lhs_ast);
+    struct expr rhs_expr = eval_expr(lhs_expr.type, rhs_ast);
+
+    // if lhs is array, generate memcpy instead
+    if (is_array_type(lhs_expr.type)) {
+        struct rope *rope = memcpy_lparen_rope;
+        rope = rope_new_tree(rope, lhs_expr.rope);
+        rope = rope_new_tree(rope, comma_sp_rope);
+        rope = rope_new_tree(rope, rhs_expr.rope);
+        rope = rope_new_tree(rope, comma_sp_rope);
+        rope = rope_new_tree(rope, sizeof_sp_rope);
+        rope = rope_new_tree(rope, lparen_rope);
+        rope = rope_new_tree(rope, type_to_c(NULL, lhs_expr.type));
+        rope = rope_new_tree(rope, rparen_rope);
+        rope = rope_new_tree(rope, rparen_rope);
+
+        return (struct expr) {
+            .rope = rope,
+            .type = eval_type(NULL, ast)
+        };
+    }
+
+    int prec = get_c_prec(ast->tag);
+    int lhs_prec = get_c_prec(lhs_ast->tag);
+    int rhs_prec = get_c_prec(rhs_ast->tag);
+
+    if (lhs_prec < prec || (lhs_prec == prec && is_rassoc(ast->tag)))
+        lhs_expr.rope = add_paren(lhs_expr.rope);
+
+    if (rhs_prec < prec || (rhs_prec == prec && !is_rassoc(ast->tag)))
+        rhs_expr.rope = add_paren(rhs_expr.rope);
+
+    struct rope *rope = lhs_expr.rope;
+    rope = rope_new_tree(rope, asgn_binop_rope);
+    rope = rope_new_tree(rope, rhs_expr.rope);
+
+    return (struct expr) { 
+        .rope = rope,
+        .type = eval_type(NULL, ast)
+    };
+}
+
+struct expr eval_comma_expr(struct type *t, struct ast *ast)
+{
+    struct ast *lhs_ast = ast_ast(ast, 0);
+    struct ast *rhs_ast = ast_ast(ast, 1);
+    struct expr lhs_expr = eval_expr(NULL, lhs_ast);
+    struct expr rhs_expr = eval_expr(t, rhs_ast);
+
+    int prec = get_c_prec(ast->tag);
+    int lhs_prec = get_c_prec(lhs_ast->tag);
+    int rhs_prec = get_c_prec(rhs_ast->tag);
+
+    if (lhs_prec < prec || (lhs_prec == prec && is_rassoc(ast->tag)))
+        lhs_expr.rope = add_paren(lhs_expr.rope);
+
+    if (rhs_prec < prec || (rhs_prec == prec && !is_rassoc(ast->tag)))
+        rhs_expr.rope = add_paren(rhs_expr.rope);
+
+    struct rope *rope = lhs_expr.rope;
+    rope = rope_new_tree(rope, comma_sp_rope);
+    rope = rope_new_tree(rope, rhs_expr.rope);
+
+    return (struct expr) { 
+        .rope = rope,
+        .type = eval_type(NULL, ast)
+    };
+}
+
+
 struct expr eval_binop_expr(struct ast *ast, struct rope *c_op)
 {
     struct ast *lhs_ast = ast_ast(ast, 0);
     struct ast *rhs_ast = ast_ast(ast, 1);
-    struct expr lhs_expr = eval_expr(lhs_ast);
-    struct expr rhs_expr = eval_expr(rhs_ast);
+    struct expr lhs_expr = eval_expr(NULL, lhs_ast);
+    struct expr rhs_expr = eval_expr(NULL, rhs_ast);
 
     int prec = get_c_prec(ast->tag);
     int lhs_prec = get_c_prec(lhs_ast->tag);
@@ -920,42 +1038,45 @@ struct expr eval_binop_expr(struct ast *ast, struct rope *c_op)
 
     return (struct expr) { 
         .rope = rope,
-        .type = eval_type(ast)
+        .type = eval_type(NULL, ast)
     };
 }
 
 struct expr eval_preop_expr(struct ast *ast, struct rope *c_op)
 {
     struct ast *expr_ast = ast_ast(ast, 0);
-    struct expr expr = eval_expr(expr_ast);
+    struct expr expr = eval_expr(NULL, expr_ast);
     if (get_c_prec(expr_ast->tag) < get_c_prec(ast->tag))
         expr.rope = add_paren(expr.rope);
 
     return (struct expr) { 
         .rope = rope_new_tree(c_op, expr.rope),
-        .type = eval_type(ast)
+        .type = eval_type(NULL, ast)
     };
 }
 
-struct expr eval_postop_expr(struct ast *ast, const char *c_op)
+struct expr eval_postop_expr(struct ast *ast, struct rope *c_op)
 {
-    struct expr expr = eval_expr(ast_ast(ast, 0));
+    struct ast *expr_ast = ast_ast(ast, 0);
+    struct expr expr = eval_expr(NULL, expr_ast);
+    if (get_c_prec(expr_ast->tag) < get_c_prec(ast->tag))
+        expr.rope = add_paren(expr.rope);
 
     return (struct expr) { 
-        .rope = rope_new_tree(add_paren(expr.rope), rope_new_s(c_op)),
-        .type = eval_type(ast)
+        .rope = rope_new_tree(expr.rope, c_op),
+        .type = eval_type(NULL, ast)
     };
 }
 
-struct expr eval_cond_expr(struct ast *ast)
+struct expr eval_cond_expr(struct type *t, struct ast *ast)
 {
-    struct type *type = eval_type(ast);
+    struct type *type = eval_type(NULL, ast);
     struct ast *cond_ast = ast_ast(ast, 0);
     struct ast *then_ast = ast_ast(ast, 1);
     struct ast *else_ast = ast_ast(ast, 2);
-    struct expr cond_expr = eval_expr(cond_ast);
-    struct expr then_expr = eval_expr(then_ast);
-    struct expr else_expr = eval_expr(else_ast);
+    struct expr cond_expr = eval_expr(NULL, cond_ast);
+    struct expr then_expr = eval_expr(t, then_ast);
+    struct expr else_expr = eval_expr(t, else_ast);
 
     int prec = get_c_prec(ast->tag);
     int cond_prec = get_c_prec(cond_ast->tag);
@@ -981,7 +1102,7 @@ struct expr eval_cond_expr(struct ast *ast)
 
 struct expr eval_sizeof_expr(struct ast *ast)
 {
-    struct expr expr = eval_expr(ast_ast(ast, 0));
+    struct expr expr = eval_expr(NULL, ast_ast(ast, 0));
     struct rope *rope = rope_new_tree(sizeof_sp_rope, expr.rope);
 
     return (struct expr){ .type = const_int_type, .rope = rope };
@@ -995,8 +1116,8 @@ struct expr eval_cast_expr(struct ast *ast)
 
 struct expr eval_call_expr(struct ast *ast)
 {
-    struct type *type = eval_type(ast);
-    struct expr called_expr = eval_expr(ast_ast(ast, 0));
+    struct type *type = eval_type(NULL, ast);
+    struct expr called_expr = eval_expr(NULL, ast_ast(ast, 0));
     struct rope *rope = called_expr.rope;
 
 
@@ -1005,8 +1126,10 @@ struct expr eval_call_expr(struct ast *ast)
 
     rope = rope_new_tree(rope, rope_new_s("("));
 
+    struct func_type *called_type = func_type(called_expr.type);
+
     for (size_t i = 0; i < n_arg_asts; i++) {
-        struct expr arg_expr = eval_expr(arg_asts[i]);
+        struct expr arg_expr = eval_expr(called_type->params[i], arg_asts[i]);
 
         rope = rope_new_tree(rope, arg_expr.rope);
 
@@ -1023,8 +1146,8 @@ struct expr eval_subscr_expr(struct ast *ast)
 {
     struct ast *lhs_ast = ast_ast(ast, 0);
     struct ast *rhs_ast = ast_ast(ast, 1);
-    struct expr lhs_expr = eval_expr(lhs_ast);
-    struct expr rhs_expr = eval_expr(rhs_ast);
+    struct expr lhs_expr = eval_expr(NULL, lhs_ast);
+    struct expr rhs_expr = eval_expr(NULL, rhs_ast);
 
     if (get_c_prec(lhs_ast->tag) < get_c_prec(ast->tag))
         lhs_expr.rope = add_paren(lhs_expr.rope);
@@ -1034,14 +1157,14 @@ struct expr eval_subscr_expr(struct ast *ast)
     rope = rope_new_tree(rope, rhs_expr.rope);
     rope = rope_new_tree(rope, rsquare_rope);
 
-    return (struct expr){ .rope = rope, .type = eval_type(ast) };
+    return (struct expr){ .rope = rope, .type = eval_type(NULL, ast) };
 }
 
 struct expr eval_member_expr(struct ast *ast)
 {
     struct ast *lhs_ast = ast_ast(ast, 0);
     struct ast *rhs_ast = ast_ast(ast, 1);
-    struct expr lhs_expr = eval_expr(lhs_ast);
+    struct expr lhs_expr = eval_expr(NULL, lhs_ast);
     const char *member_id = ast_s(rhs_ast);
 
     int prec = get_c_prec(MEMBER_EXPR);
@@ -1056,11 +1179,11 @@ struct expr eval_member_expr(struct ast *ast)
 
     return (struct expr) { 
         .rope = rope,
-        .type = eval_type(ast)
+        .type = eval_type(NULL, ast)
     };
 }
 
-struct expr eval_name_expr(struct ast *ast)
+struct expr eval_name_expr(struct type *t, struct ast *ast)
 {
     const char *name = ast_s(ast);
     struct sym *sym = scope_get_sym(current_scope, name);
@@ -1074,7 +1197,7 @@ struct expr eval_name_expr(struct ast *ast)
                 .type = ((struct decl_sym *)sym)->type
             };
         case ALIAS_SYM:
-            return eval_expr(((struct alias_sym *)sym)->ast);
+            return eval_expr(t, ((struct alias_sym *)sym)->ast);
     }
     abort();
     return (struct expr){ 0 };
@@ -1092,7 +1215,7 @@ struct expr eval_int_const_expr(struct ast *ast)
 struct expr eval_float_const_expr(struct ast *ast)
 {
     return (struct expr) {
-        .type = eval_type(ast),
+        .type = eval_type(NULL, ast),
         .rope = rope_new_fmt("%f", ast_f(ast))
     };
 }
@@ -1100,7 +1223,7 @@ struct expr eval_float_const_expr(struct ast *ast)
 struct expr eval_str_lit_expr(struct ast *ast)
 {
     return (struct expr) {
-        .type = eval_type(ast),
+        .type = eval_type(NULL, ast),
         .rope = rope_new_fmt("\"%s\"", ast_s(ast))
     };
 }
@@ -1108,7 +1231,7 @@ struct expr eval_str_lit_expr(struct ast *ast)
 struct expr eval_char_lit_expr(struct ast *ast)
 {
     return (struct expr) {
-        .type = eval_type(ast),
+        .type = eval_type(NULL, ast),
         .rope = rope_new_fmt("\'%s\'", ast_s(ast))
     };
 }
@@ -1120,20 +1243,59 @@ struct expr eval_decl_expr(struct ast *ast)
     struct type *type = eval_decl_type(ast);
 
     // Then evalute the name of the declared symbol.
-    return eval_name_expr(name_ast);
+    return eval_name_expr(NULL, name_ast);
 }
 
-struct expr eval_expr(struct ast *ast)
+struct expr eval_init_expr(struct type *t, struct ast *ast)
+{
+    struct type *type = eval_type(t, ast);
+
+    size_t n_childs;
+    struct ast **childs = ast_asts(ast, &n_childs);
+
+    struct rope *rope = lparen_rope;
+    rope = rope_new_tree(rope, type_to_c(NULL, t));
+    rope = rope_new_tree(rope, rparen_sp_rope);
+    rope = rope_new_tree(rope, lcurly_sp_rope);
+
+    if (is_array_type(t)) {
+        struct array_type *a_t = array_type(t);
+
+        for (size_t i = 0; i < n_childs; i++) {
+            struct expr expr = eval_expr(a_t->of, childs[i]);
+            rope = rope_new_tree(rope, expr.rope);
+
+            if (i != n_childs - 1)
+                rope = rope_new_tree(rope, comma_sp_rope);
+        }
+    } else if (is_struct_type(t)) {
+        struct struct_type *s_t = struct_type(t);
+
+        for (size_t i = 0; i < n_childs; i++) {
+            struct expr expr = eval_expr(s_t->fields[i].type, childs[i]);
+            rope = rope_new_tree(rope, expr.rope);
+
+            if (i != n_childs - 1)
+                rope = rope_new_tree(rope, comma_sp_rope);
+        }
+    }
+
+    rope = rope_new_tree(rope, sp_rcurly_rope);
+
+    return (struct expr) { .type = type, .rope = rope };
+}
+
+struct expr eval_expr(struct type *t, struct ast *ast)
 {
     switch (ast->tag) {
         case COMMA_EXPR:
-            return eval_binop_expr(ast, comma_sp_rope);
+            return eval_comma_expr(t, ast);
 
         case COND_EXPR:
-            return eval_cond_expr(ast);
+            return eval_cond_expr(t, ast);
 
         case ASGN_EXPR:
-            return eval_binop_expr(ast, asgn_binop_rope);
+            return eval_asgn_expr(ast);
         case ADD_ASGN_EXPR:
             return eval_binop_expr(ast, addasgn_binop_rope);
         case SUB_ASGN_EXPR:
@@ -1233,9 +1395,9 @@ struct expr eval_expr(struct ast *ast)
             return eval_call_expr(ast);
 
         case POST_INC_EXPR:
-            return eval_preop_expr(ast, inc_rope);
+            return eval_postop_expr(ast, inc_rope);
         case POST_DEC_EXPR:
-            return eval_preop_expr(ast, dec_rope);
+            return eval_postop_expr(ast, dec_rope);
 
         case MEMBER_EXPR:
             return eval_member_expr(ast);
@@ -1253,19 +1415,22 @@ struct expr eval_expr(struct ast *ast)
             return eval_char_lit_expr(ast);
 
         case TRUE_CONST:
-            return (struct expr) { .rope = one_rope, .type = eval_type(ast) };
+            return (struct expr) { .rope = one_rope, .type = eval_type(NULL, ast) };
 
         case FALSE_CONST:
-            return (struct expr) { .rope = zero_rope, .type = eval_type(ast) };
+            return (struct expr) { .rope = zero_rope, .type = eval_type(NULL, ast) };
 
         case NULL_CONST:
-            return (struct expr) { .rope = zero_rope, .type = eval_type(ast) };
+            return (struct expr) { .rope = zero_rope, .type = eval_type(NULL, ast) };
 
         case NAME:
-            return eval_name_expr(ast);
+            return eval_name_expr(t, ast);
 
         case DECL:
             return eval_decl_expr(ast);
+
+        case INIT_EXPR:
+            return eval_init_expr(t, ast);
     }
     return (struct expr){ 0 };
 }

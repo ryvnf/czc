@@ -79,6 +79,7 @@ struct rope minus_rope[1] = { { .leaf = true, .val.s =  "-" } };
 struct rope amp_rope[1] = { { .leaf = true, .val.s =  "&" } };
 struct rope inc_rope[1] = { { .leaf = true, .val.s =  "++" } };
 struct rope dec_rope[1] = { { .leaf = true, .val.s =  "--" } };
+struct rope memcpy_lparen_rope[1] = { { .leaf = true, .val.s =  "memcpy(" } };
 
 static struct {
     char data[1 << 20];

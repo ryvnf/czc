@@ -51,7 +51,6 @@ extern struct rope dot_rope[1];
 extern struct rope one_rope[1];
 extern struct rope zero_rope[1];
 extern struct rope sizeof_sp_rope[1];
-extern struct rope comma_binop_rope[1];
 extern struct rope question_mark_binop_rope[1];
 extern struct rope colon_binop_rope[1];
 extern struct rope asgn_binop_rope[1];
@@ -91,6 +90,7 @@ extern struct rope amp_rope[1];
 extern struct rope inc_rope[1];
 extern struct rope dec_rope[1];
 extern struct rope star_rope[1];
+extern struct rope memcpy_lparen_rope[1];
 
 struct rope *rope_new_s(const char *s);
 struct rope *rope_new_fmt(const char *fmt, ...);
