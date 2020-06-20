@@ -28,6 +28,9 @@ struct rope *zc_prog_defs_rope;
 // The local variable declarations in the current function
 struct rope *zc_func_decls_rope;
 
+// Labels (used or defined) in the current function
+struct strmap *zc_func_labels;
+
 void unrecognized_opt(const char *opt)
 {
     fatal(-1, "unrecognized command line option '%s'\n", opt);

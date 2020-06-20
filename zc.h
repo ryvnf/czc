@@ -57,4 +57,7 @@ extern struct rope *zc_prog_defs_rope;
 // The local variable declarations in the current function
 extern struct rope *zc_func_decls_rope;
 
+// Labels (used or defined) in the current function
+extern struct strmap *zc_func_labels;
+
 #endif // !defined ZC_H

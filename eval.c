@@ -1268,6 +1268,8 @@ struct expr eval_init_expr(struct type *t, struct ast *ast)
 
             if (i != n_childs - 1)
                 rope = rope_new_tree(rope, comma_sp_rope);
+            else
+                rope = rope_new_tree(rope, sp_rope);
         }
     } else if (is_struct_type(t)) {
         struct struct_type *s_t = struct_type(t);
@@ -1278,10 +1280,12 @@ struct expr eval_init_expr(struct type *t, struct ast *ast)
 
             if (i != n_childs - 1)
                 rope = rope_new_tree(rope, comma_sp_rope);
+            else
+                rope = rope_new_tree(rope, sp_rope);
         }
     }
 
-    rope = rope_new_tree(rope, sp_rcurly_rope);
+    rope = rope_new_tree(rope, rcurly_rope);
 
     return (struct expr) { .type = type, .rope = rope };
 }

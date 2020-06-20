@@ -101,6 +101,11 @@ enum tok float_constant(void)
   return last_tok = RETURN_TOK;
 }
 
+"goto" {
+  yylval.linenr = linenr;
+  return last_tok = GOTO_TOK;
+}
+
 "break" {
   yylval.linenr = linenr;
   return last_tok = BREAK_TOK;

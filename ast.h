@@ -29,7 +29,7 @@
     X(SWITCH_STMT, 0x4108) \
     X(CASE_CLAUSE, 0x4109) \
     X(DEFAULT_CLAUSE, 0x410a) \
-    X(LABEL, 0x410b) \
+    X(LABEL_STMT, 0x410b) \
     X(COMMA_EXPR, 0x4200) \
     X(COND_EXPR, 0x4210) \
     X(ASGN_EXPR, 0x4220) \

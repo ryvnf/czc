@@ -34,6 +34,7 @@ static struct ast *parse_expr(struct parse *parse);
 static struct ast *parse_type(struct parse *parse);
 static struct ast *parse_block(struct parse *parse);
 static struct ast *parse_stmt_list(struct parse *parse);
+static struct ast *parse_stmt(struct parse *parse);
 
 static struct parse *tokenize(FILE *fp)
 {
@@ -909,6 +910,39 @@ err0:
     return NULL;
 }
 
+/* label_stmt : name ':' stmt?
+ */
+static struct ast *parse_label_stmt(struct parse *parse)
+{
+    size_t line = get_linenr(parse);
+    struct ast *name = parse_name(parse);
+    if (name == NULL)
+        return NULL;
+
+    if (!expect(parse, ':'))
+        return NULL;
+
+    struct ast *stmt = parse_stmt(parse);
+
+    return ast_new_ast(line, LABEL_STMT, 2, name, stmt);
+}
+
+/* goto_stmt : 'goto' name
+ */
+static struct ast *parse_goto_stmt(struct parse *parse)
+{
+    if (!expect(parse, GOTO_TOK))
+        return NULL;
+
+    int line = get_linenr(parse);
+
+    struct ast *name = parse_name(parse);
+    if (name == NULL)
+        return NULL;
+
+    return ast_new_ast(line, GOTO_STMT, 1, name);
+}
+
 /* stmt : if_stmt
  *      | do_stmt
  *      | while_stmt
@@ -916,6 +950,7 @@ err0:
  *      | 'break'
  *      | 'continue'
  *      | 'fallthrough'
+ *      | label
  */
 static struct ast *parse_stmt(struct parse *parse)
 {
@@ -947,6 +982,9 @@ static struct ast *parse_stmt(struct parse *parse)
             parse->pos++;
             return ast_new_ast(line, RETURN_STMT, 1, parse_expr(parse));
 
+        case GOTO_TOK:
+            return parse_goto_stmt(parse);
+
         case BREAK_TOK:
             parse->pos++;
             return ast_new(line, BREAK_STMT);
@@ -958,6 +996,17 @@ static struct ast *parse_stmt(struct parse *parse)
         case FALLTHROUGH_TOK:
             parse->pos++;
             return ast_new(line, FALLTHROUGH_STMT);
+
+        case IDENT_TOK:  {
+            size_t pos = parse->pos;
+            struct ast *lbl = parse_label_stmt(parse);
+            if (lbl == NULL) {
+                parse->pos = pos;
+                break;
+            }
+
+            return lbl;
+        }
     }
 
     return parse_expr(parse);

@@ -1,7 +1,72 @@
 #include "zc.h"
 
+struct lbl {
+    char *name;
+    char *c_name;
+    bool defined;
+    struct ast *first_use;
+    struct lbl *next;
+};
+
+// List of labels used so they can be checked against defined labels
+struct lbl *lbl_list = NULL;
+
+struct lbl *new_lbl(const char *name, bool defined)
+{
+    struct lbl *lbl = malloc(sizeof *lbl);
+    lbl->name = strdup(name);
+    lbl->c_name = gen_c_ident();
+    lbl->defined = defined;
+    lbl->next = lbl_list;
+    lbl_list = lbl;
+
+    strmap_add(zc_func_labels, name, lbl);
+
+    return lbl;
+}
+
+void check_lbl_list(struct lbl *lbl_node)
+{
+    if (lbl_node == NULL)
+        return;
+
+    if (!lbl_node->defined)
+        fatal(lbl_node->first_use->line, "undefined label %s", lbl_node->name);
+
+    free(lbl_node->name);
+    free(lbl_node->c_name);
+    check_lbl_list(lbl_node->next);
+    free(lbl_node);
+}
+
 struct rope *stmt_list_to_c(struct rope *rope, struct ast *ast,
         bool *fallthrough);
+
+const char *goto_label(const char *name, struct ast *goto_stmt)
+{
+    struct lbl *lbl = strmap_get(zc_func_labels, name);
+
+    if (lbl != NULL)
+        return lbl->c_name;
+
+    lbl = new_lbl(name, false);
+    lbl->first_use = goto_stmt;
+
+    return lbl->c_name;
+}
+
+const char *define_label(const char *name)
+{
+    struct lbl *lbl = strmap_get(zc_func_labels, name);
+
+    if (lbl != NULL) {
+        lbl->defined = true;
+        return lbl->c_name;
+    }
+
+    lbl = new_lbl(name, true);
+    return lbl->c_name;
+}
 
 void push_scope(void)
 {
@@ -152,7 +217,7 @@ struct rope *expr_stmt_to_c(struct ast *ast)
     struct expr expr = eval_expr(NULL, ast);
     if (ast->tag == DECL)
         return NULL;
-    return rope_new_tree(expr.rope, semi_rope);
+    return add_indent_nl(rope_new_tree(expr.rope, semi_rope));
 }
 
 struct rope *cmpnd_stmt_to_c(struct ast *ast)
@@ -162,7 +227,7 @@ struct rope *cmpnd_stmt_to_c(struct ast *ast)
     struct rope *rope = block_to_c(ast_ast(ast, 0));
 
     pop_scope();
-    return rope;
+    return add_indent_nl(rope);
 }
 
 struct rope *if_stmt_to_c(struct ast *ast)
@@ -192,7 +257,7 @@ struct rope *if_stmt_to_c(struct ast *ast)
 
     pop_scope();
 
-    return rope;
+    return add_indent_nl(rope);
 }
 
 struct rope *clause_to_c(struct ast *ast)
@@ -226,7 +291,15 @@ struct rope *clause_to_c(struct ast *ast)
 
     zc_indent_level++;
     bool fallthrough = false;
-    rope = stmt_list_to_c(rope, stmt_list, &fallthrough);
+
+    size_t n_stmts;
+    ast_asts(stmt_list, &n_stmts);
+
+    if (n_stmts != 0) 
+        rope = stmt_list_to_c(rope, stmt_list, &fallthrough);
+    else
+        rope = add_indent_nl(semi_rope);
+
     if (!fallthrough)
         rope = rope_new_tree(rope, add_indent_nl(break_semi_rope));
     zc_indent_level--;
@@ -271,7 +344,7 @@ struct rope *switch_stmt_to_c(struct ast *ast)
 
     pop_scope();
 
-    return rope;
+    return add_indent_nl(rope);
 }
 
 struct rope *while_stmt_to_c(struct ast *ast)
@@ -295,7 +368,7 @@ struct rope *while_stmt_to_c(struct ast *ast)
 
     pop_scope();
 
-    return rope;
+    return add_indent_nl(rope);
 }
 
 struct rope *do_while_stmt_to_c(struct ast *ast)
@@ -320,7 +393,7 @@ struct rope *do_while_stmt_to_c(struct ast *ast)
 
     pop_scope();
 
-    return rope;
+    return add_indent_nl(rope);
 }
 
 struct rope *for_stmt_to_c(struct ast *ast)
@@ -364,7 +437,7 @@ struct rope *for_stmt_to_c(struct ast *ast)
 
     pop_scope();
 
-    return rope;
+    return add_indent_nl(rope);
 }
 
 struct rope *return_stmt_to_c(struct ast *ast)
@@ -386,21 +459,53 @@ struct rope *return_stmt_to_c(struct ast *ast)
 
     struct rope *rope = rope_new_tree(return_sp_rope, expr.rope);
     rope = rope_new_tree(rope, semi_rope);
-    return rope;
+    return add_indent_nl(rope);
 }
 
 struct rope *break_stmt_to_c(struct ast *ast)
 {
     if (zc_loop_level == 0)
         fatal(ast->line, "break not inside a loop");
-    return break_semi_rope;
+    return add_indent_nl(break_semi_rope);
 }
 
 struct rope *continue_stmt_to_c(struct ast *ast)
 {
     if (zc_loop_level == 0)
         fatal(ast->line, "continue not inside a loop");
-    return continue_semi_rope;
+    return add_indent_nl(continue_semi_rope);
+}
+
+struct rope *label_stmt_to_c(struct ast *ast)
+{
+    struct ast *name_ast = ast_ast(ast, 0);
+    const char *name = ast_s(name_ast);
+    const char *c_name = define_label(name);
+
+    struct ast *stmt_ast = ast_ast(ast, 1);
+
+    struct rope *rope = rope_new_s(c_name);
+    rope = rope_new_tree(rope, colon_nl_rope);
+
+    if (stmt_ast)
+        rope = rope_new_tree(rope, stmt_to_c(stmt_ast));
+    else
+        rope = rope_new_tree(rope, add_indent_nl(semi_rope));
+
+    return rope;
+}
+
+struct rope *goto_stmt_to_c(struct ast *ast)
+{
+    struct ast *name_ast = ast_ast(ast, 0);
+    const char *name = ast_s(name_ast);
+    const char *c_name = goto_label(name, ast);
+
+    struct rope *rope = goto_sp_rope;
+    rope = rope_new_tree(rope, rope_new_s(c_name));
+    rope = rope_new_tree(rope, semi_nl_rope);
+
+    return add_indent(rope);
 }
 
 struct rope *stmt_to_c(struct ast *ast)
@@ -426,6 +531,10 @@ struct rope *stmt_to_c(struct ast *ast)
             return break_stmt_to_c(ast);
         case CONTINUE_STMT:
             return continue_stmt_to_c(ast);
+        case GOTO_STMT:
+            return goto_stmt_to_c(ast);
+        case LABEL_STMT:
+            return label_stmt_to_c(ast);
     }
 }
 
@@ -445,7 +554,7 @@ struct rope *stmt_list_to_c(struct rope *rope, struct ast *ast,
         }
 
         struct rope *c_stmt = stmt_to_c(stmt_asts[i]);
-        rope = rope_new_tree(rope, add_indent_nl(c_stmt));
+        rope = rope_new_tree(rope, c_stmt);
     }
 
     return rope;
@@ -466,6 +575,9 @@ struct rope *block_to_c(struct ast *ast)
 
 struct rope *func_body_to_c(struct ast *ast)
 {
+    zc_func_labels = strmap_new(32);
+    lbl_list = NULL;
+
     struct rope *rope = lcurly_nl_rope;
     zc_func_decls_rope = NULL;
 
@@ -479,6 +591,9 @@ struct rope *func_body_to_c(struct ast *ast)
 
     zc_indent_level--;
     rope = rope_new_tree(rope, add_indent(rcurly_rope));
+
+    strmap_del(zc_func_labels, NULL);
+    check_lbl_list(lbl_list);
 
     return rope;
 }

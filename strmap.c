@@ -60,7 +60,10 @@ void del_strmap_e(struct strmap_e *e, void (*val_free)(void *))
 
     del_strmap_e(e->next, val_free);
     free(e->key);
-    val_free(e->val);
+
+    if (val_free != NULL)
+        val_free(e->val);
+
     free(e);
 }
 
