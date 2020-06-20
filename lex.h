@@ -44,7 +44,11 @@
         X(FALSE_TOK, 294) \
         X(DEFINE_TOK, 295) \
         X(CHAR_TOK, 296) \
-	X(FLOAT_NUM_TOK, 297)
+	X(FLOAT_NUM_TOK, 297) \
+	X(CASE_TOK, 298) \
+	X(DEFAULT_TOK, 299) \
+	X(FALLTHROUGH_TOK, 300) \
+	X(SWITCH_TOK, 301)
 
 enum tok {
 #define member(name, val) name = val,

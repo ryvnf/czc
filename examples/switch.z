@@ -1,0 +1,19 @@
+printf(^ char, ...) int
+
+main() int {
+    switch (9) {
+    case 1:
+        printf("one\n");
+    case 2:
+        printf("two\n");
+    case 3:
+        printf("three\n");
+        fallthrough;
+    case 4:
+        printf("four\n");
+    default:
+        printf("unknown\n");
+    }
+
+    return 0;
+}

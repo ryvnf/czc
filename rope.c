@@ -80,6 +80,10 @@ struct rope amp_rope[1] = { { .leaf = true, .val.s =  "&" } };
 struct rope inc_rope[1] = { { .leaf = true, .val.s =  "++" } };
 struct rope dec_rope[1] = { { .leaf = true, .val.s =  "--" } };
 struct rope memcpy_lparen_rope[1] = { { .leaf = true, .val.s =  "memcpy(" } };
+struct rope switch_sp_lparen_rope[1] = { { .leaf = true, .val.s = "switch (" } };
+struct rope case_sp_rope[1] = { { .leaf = true, .val.s = "case " } };
+struct rope default_colon_nl_rope[1] = { { .leaf = true, .val.s = "default:\n" } };
+struct rope colon_nl_rope[1] = { { .leaf = true, .val.s = ":\n" } };
 
 static struct {
     char data[1 << 20];

@@ -1,5 +1,8 @@
 #include "zc.h"
 
+struct rope *stmt_list_to_c(struct rope *rope, struct ast *ast,
+        bool *fallthrough);
+
 void push_scope(void)
 {
     current_scope = scope_new(current_scope, 256, 16);
@@ -192,6 +195,80 @@ struct rope *if_stmt_to_c(struct ast *ast)
     return rope;
 }
 
+struct rope *clause_to_c(struct ast *ast)
+{
+    struct rope *rope;
+    struct ast *stmt_list;
+
+    switch (ast->tag) {
+        case CASE_CLAUSE: {
+            rope = case_sp_rope;
+            
+            struct expr expr = eval_expr(NULL, ast_ast(ast, 0));
+
+            rope = rope_new_tree(rope, expr.rope);
+            rope = rope_new_tree(rope, colon_nl_rope);
+
+            stmt_list = ast_ast(ast, 1);
+            break;
+        }
+        case DEFAULT_CLAUSE: {
+            rope = default_colon_nl_rope;
+            stmt_list = ast_ast(ast, 0);
+            break;
+        }
+    }
+
+    zc_indent_level++;
+    bool fallthrough = false;
+    rope = stmt_list_to_c(rope, stmt_list, &fallthrough);
+    if (!fallthrough)
+        rope = rope_new_tree(rope, add_indent_nl(break_semi_rope));
+    zc_indent_level--;
+
+    return rope;
+}
+
+struct rope *switch_block_to_c(struct ast *ast)
+{
+    struct rope *rope = lcurly_nl_rope;
+
+    size_t n_clause_asts;
+    struct ast **clause_asts = ast_asts(ast, &n_clause_asts);
+
+    for (size_t i = 0; i < n_clause_asts; ++i) {
+        struct rope *c_clause = clause_to_c(clause_asts[i]);
+	if (rope != NULL)
+	    rope = rope_new_tree(rope, add_indent(c_clause));
+    }
+
+    rope = rope_new_tree(rope, add_indent(rcurly_rope));
+
+    return rope;
+}
+
+struct rope *switch_stmt_to_c(struct ast *ast)
+{
+    struct rope *rope = switch_sp_lparen_rope;
+    struct ast *expr_ast = ast_ast(ast, 0);
+    struct ast *block_ast = ast_ast(ast, 1);
+
+    push_scope();
+
+    struct expr expr = eval_expr(NULL, expr_ast);
+    if (!is_bool_type(expr.type) && !is_int_type(expr.type))
+        fatal(ast->line, "expression has to be of boolean or integer type");
+
+    rope = rope_new_tree(rope, expr.rope);
+    rope = rope_new_tree(rope, rparen_sp_rope);
+
+    rope = rope_new_tree(rope, switch_block_to_c(block_ast));
+
+    pop_scope();
+
+    return rope;
+}
+
 struct rope *while_stmt_to_c(struct ast *ast)
 {
     struct rope *rope = while_sp_lparen_rope;
@@ -330,6 +407,8 @@ struct rope *stmt_to_c(struct ast *ast)
             return cmpnd_stmt_to_c(ast);
         case IF_STMT:
             return if_stmt_to_c(ast);
+        case SWITCH_STMT:
+            return switch_stmt_to_c(ast);
         case WHILE_STMT:
             return while_stmt_to_c(ast);
         case DO_WHILE_STMT:
@@ -345,19 +424,35 @@ struct rope *stmt_to_c(struct ast *ast)
     }
 }
 
+struct rope *stmt_list_to_c(struct rope *rope, struct ast *ast,
+        bool *fallthrough)
+{
+    size_t n_stmt_asts;
+    struct ast **stmt_asts = ast_asts(ast, &n_stmt_asts);
+
+    for (size_t i = 0; i < n_stmt_asts; ++i) {
+        if (stmt_asts[i]->tag == FALLTHROUGH_STMT) {
+            if (fallthrough == NULL || i != n_stmt_asts - 1)
+                fatal(stmt_asts[i]->line, "fallthrough not allowed here");
+
+            *fallthrough = true;
+            break;
+        }
+
+        struct rope *c_stmt = stmt_to_c(stmt_asts[i]);
+	if (rope != NULL)
+	    rope = rope_new_tree(rope, add_indent_nl(c_stmt));
+    }
+
+    return rope;
+}
+
 struct rope *block_to_c(struct ast *ast)
 {
     struct rope *rope = lcurly_nl_rope;
     zc_indent_level++;
 
-    size_t n_stmt_asts;
-    struct ast **stmt_asts = ast_asts(ast, &n_stmt_asts);
-
-    for (size_t i = 0; i < n_stmt_asts; ++i) {
-        struct rope *c_stmt = stmt_to_c(stmt_asts[i]);
-	if (rope != NULL)
-	    rope = rope_new_tree(rope, add_indent_nl(c_stmt));
-    }
+    rope = stmt_list_to_c(rope, ast, NULL);
 
     zc_indent_level--;
     rope = rope_new_tree(rope, add_indent(rcurly_rope));

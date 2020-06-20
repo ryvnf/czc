@@ -69,11 +69,20 @@ enum tok float_constant(void)
   return last_tok = ELSE_TOK;
 }
 
-"do" {
+"switch" {
   yylval.linenr = linenr;
-  return last_tok = DO_TOK;
+  return last_tok = SWITCH_TOK;
 }
 
+"case" {
+  yylval.linenr = linenr;
+  return last_tok = CASE_TOK;
+}
+
+"default" {
+  yylval.linenr = linenr;
+  return last_tok = DEFAULT_TOK;
+}
 
 "while" {
   yylval.linenr = linenr;
@@ -92,16 +101,19 @@ enum tok float_constant(void)
   return last_tok = RETURN_TOK;
 }
 
-
 "break" {
   yylval.linenr = linenr;
   return last_tok = BREAK_TOK;
 }
 
-
 "continue" {
   yylval.linenr = linenr;
   return last_tok = CONTINUE_TOK;
+}
+
+"fallthrough" {
+  yylval.linenr = linenr;
+  return last_tok = FALLTHROUGH_TOK;
 }
 
 "&&" {

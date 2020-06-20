@@ -28,6 +28,10 @@
 // The amount of nested loops (used to know when continue or break is allowed)
 extern int zc_loop_level;
 
+// The amount of nested switch statements (used to know when fallthrough
+// is allowed)
+extern int zc_switch_level;
+
 // The current indentation level when generating C code.
 extern int zc_indent_level;
 

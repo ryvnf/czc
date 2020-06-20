@@ -33,6 +33,7 @@ static struct ast *parse_init(struct parse *parse);
 static struct ast *parse_expr(struct parse *parse);
 static struct ast *parse_type(struct parse *parse);
 static struct ast *parse_block(struct parse *parse);
+static struct ast *parse_stmt_list(struct parse *parse);
 
 static struct parse *tokenize(FILE *fp)
 {
@@ -681,6 +682,93 @@ static struct ast *parse_expr(struct parse *parse)
     return parse_binop_expr(parse, COMMA_PREC);
 }
 
+static struct ast *parse_case(struct parse *parse)
+{
+    int linenr = get_linenr(parse);
+
+    switch (peek_tok(parse)->type) {
+        case CASE_TOK: {
+            parse->pos++;
+            struct ast *expr = parse_expr(parse);
+
+            if (!expect(parse, ':'))
+                return NULL;
+
+            struct ast *stmt_list = parse_stmt_list(parse);
+            return ast_new_ast(linenr, CASE_CLAUSE, 2, expr, stmt_list);
+        }
+        case DEFAULT_TOK: {
+            parse->pos++;
+
+            if (!expect(parse, ':'))
+                return NULL;
+
+            struct ast *stmt_list = parse_stmt_list(parse);
+            return ast_new_ast(linenr, DEFAULT_CLAUSE, 1, stmt_list);
+        }
+        default:
+            return NULL;
+    }
+}
+
+static struct ast *parse_case_list(struct parse *parse)
+{
+    size_t n_asts = 0;
+    struct ast_list *head = NULL;
+    struct ast_list **tailp = &head;
+
+    int linenr = get_linenr(parse);
+
+    for (;;) {
+        int pos = parse->pos;
+        struct ast *ast = parse_case(parse);
+        if (ast == NULL) {
+            parse->pos = pos;
+            break;
+        }
+
+        *tailp = ast_list_new(ast);
+        (*tailp)->ast = ast;
+
+        n_asts++;
+        tailp = &(*tailp)->next;
+    }
+
+    return ast_new_list(linenr, CASE_LIST, head);
+}
+
+/* switch_stmt : 'switch' expr '{' case_clause_list '}'
+ */
+static struct ast *parse_switch_stmt(struct parse *parse)
+{
+    if (!expect(parse, SWITCH_TOK))
+        goto err0;
+
+    int line = get_linenr(parse);
+    struct ast *expr = parse_expr(parse);
+    if (expr == NULL)
+        goto err0;
+
+    if (!expect(parse, '{'))
+        goto err1;
+
+
+    // TODO: parse cases
+    struct ast *block = parse_case_list(parse);
+    
+    if (!expect(parse, '}'))
+        goto err2;
+
+    return ast_new_ast(line, SWITCH_STMT, 2, expr, block);
+
+err2:
+    free(block);
+err1:
+    free(expr);
+err0:        
+    return NULL;
+}
+
 /* if_stmt : 'if' expr block
  *         | 'if' expr block 'else' block
  *         | 'if' expr block 'else' if_stmt
@@ -821,6 +909,7 @@ err0:
  *      | 'return' expr?
  *      | 'break'
  *      | 'continue'
+ *      | 'fallthrough'
  */
 static struct ast *parse_stmt(struct parse *parse)
 {
@@ -839,6 +928,9 @@ static struct ast *parse_stmt(struct parse *parse)
         case FOR_TOK:
             return parse_for_stmt(parse);
 
+        case SWITCH_TOK:
+            return parse_switch_stmt(parse);
+
         case TYPE_TOK:
             return parse_type_def(parse);
 
@@ -856,6 +948,10 @@ static struct ast *parse_stmt(struct parse *parse)
         case CONTINUE_TOK:
             parse->pos++;
             return ast_new(line, CONTINUE_STMT);
+
+        case FALLTHROUGH_TOK:
+            parse->pos++;
+            return ast_new(line, FALLTHROUGH_STMT);
     }
 
     return parse_expr(parse);

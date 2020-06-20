@@ -91,6 +91,10 @@ extern struct rope inc_rope[1];
 extern struct rope dec_rope[1];
 extern struct rope star_rope[1];
 extern struct rope memcpy_lparen_rope[1];
+extern struct rope switch_sp_lparen_rope[1];
+extern struct rope case_sp_rope[1];
+extern struct rope default_colon_nl_rope[1];
+extern struct rope colon_nl_rope[1];
 
 struct rope *rope_new_s(const char *s);
 struct rope *rope_new_fmt(const char *fmt, ...);

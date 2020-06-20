@@ -7,7 +7,8 @@
     X(TRUE_CONST, 0x0002) \
     X(BREAK_STMT, 0x0003) \
     X(CONTINUE_STMT, 0x0004) \
-    X(VARARG_TYPE, 0x0005) \
+    X(FALLTHROUGH_STMT, 0x0005) \
+    X(VARARG_TYPE, 0x0006) \
     X(NAME, 0x1000) \
     X(STR_LIT, 0x1001) \
     X(CHAR_LIT, 0x1002) \
@@ -25,6 +26,10 @@
     X(RETURN_STMT, 0x4105) \
     X(GOTO_STMT, 0x4106) \
     X(CMPND_STMT, 0x4107) \
+    X(SWITCH_STMT, 0x4108) \
+    X(CASE_CLAUSE, 0x4109) \
+    X(DEFAULT_CLAUSE, 0x410a) \
+    X(LABEL, 0x410b) \
     X(COMMA_EXPR, 0x4200) \
     X(COND_EXPR, 0x4210) \
     X(ASGN_EXPR, 0x4220) \
@@ -79,6 +84,7 @@
     X(PARAM_LIST, 0x4400) \
     X(STMT_LIST, 0x4401) \
     X(EXPR_LIST, 0x4402) \
+    X(CASE_LIST, 0x4403) \
     X(PROGRAM, 0x4502) \
     X(SYMREF, 0x5000) \
     X(TYPEREF, 0x6000) \
