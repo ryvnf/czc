@@ -197,23 +197,28 @@ struct rope *if_stmt_to_c(struct ast *ast)
 
 struct rope *clause_to_c(struct ast *ast)
 {
-    struct rope *rope;
+    struct rope *rope = NULL;
     struct ast *stmt_list;
 
     switch (ast->tag) {
         case CASE_CLAUSE: {
-            rope = case_sp_rope;
-            
-            struct expr expr = eval_expr(NULL, ast_ast(ast, 0));
+            size_t n_asts;
+            struct ast **asts = ast_asts(ast_ast(ast, 0), &n_asts);
 
-            rope = rope_new_tree(rope, expr.rope);
-            rope = rope_new_tree(rope, colon_nl_rope);
+            for (size_t i = 0; i < n_asts; i++) {
+                rope = rope_new_tree(rope, add_indent(case_sp_rope));
+                
+                struct expr expr = eval_expr(NULL, asts[i]);
+
+                rope = rope_new_tree(rope, expr.rope);
+                rope = rope_new_tree(rope, colon_nl_rope);
+            }
 
             stmt_list = ast_ast(ast, 1);
             break;
         }
         case DEFAULT_CLAUSE: {
-            rope = default_colon_nl_rope;
+            rope = add_indent(default_colon_nl_rope);
             stmt_list = ast_ast(ast, 0);
             break;
         }
@@ -239,7 +244,7 @@ struct rope *switch_block_to_c(struct ast *ast)
     for (size_t i = 0; i < n_clause_asts; ++i) {
         struct rope *c_clause = clause_to_c(clause_asts[i]);
 	if (rope != NULL)
-	    rope = rope_new_tree(rope, add_indent(c_clause));
+	    rope = rope_new_tree(rope, c_clause);
     }
 
     rope = rope_new_tree(rope, add_indent(rcurly_rope));
@@ -440,8 +445,7 @@ struct rope *stmt_list_to_c(struct rope *rope, struct ast *ast,
         }
 
         struct rope *c_stmt = stmt_to_c(stmt_asts[i]);
-	if (rope != NULL)
-	    rope = rope_new_tree(rope, add_indent_nl(c_stmt));
+        rope = rope_new_tree(rope, add_indent_nl(c_stmt));
     }
 
     return rope;
@@ -467,17 +471,8 @@ struct rope *func_body_to_c(struct ast *ast)
 
     zc_indent_level++;
 
-    size_t n_stmt_asts;
-    struct ast **stmt_asts = ast_asts(ast, &n_stmt_asts);
-
     struct rope *stmts_rope = NULL;
-
-
-    for (size_t i = 0; i < n_stmt_asts; ++i) {
-        struct rope *c_stmt = stmt_to_c(stmt_asts[i]);
-        if (c_stmt != NULL)
-            stmts_rope = rope_new_tree(stmts_rope, add_indent_nl(c_stmt));
-    }
+    stmts_rope = stmt_list_to_c(stmts_rope, ast, NULL);
 
     rope = rope_new_tree(rope, zc_func_decls_rope);
     rope = rope_new_tree(rope, stmts_rope);

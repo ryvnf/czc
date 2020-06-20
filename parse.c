@@ -689,7 +689,13 @@ static struct ast *parse_case(struct parse *parse)
     switch (peek_tok(parse)->type) {
         case CASE_TOK: {
             parse->pos++;
-            struct ast *expr = parse_expr(parse);
+            struct ast *expr = parse_expr_list(parse);
+
+            size_t n_childs;
+            ast_asts(expr, &n_childs);
+
+            if (n_childs == 0)
+                syntax_error(parse);
 
             if (!expect(parse, ':'))
                 return NULL;

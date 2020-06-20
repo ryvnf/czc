@@ -4,7 +4,7 @@ main() int {
     switch (9) {
     case 1:
         printf("one\n");
-    case 2:
+    case:
         printf("two\n");
     case 3:
         printf("three\n");
@@ -13,6 +13,15 @@ main() int {
         printf("four\n");
     default:
         printf("unknown\n");
+    }
+
+    switch ('A') {
+    case 'a', 'A':
+        printf("A\n");
+    case 'b', 'B':
+        printf("B\n");
+    default:
+        printf("?\n");
     }
 
     return 0;
