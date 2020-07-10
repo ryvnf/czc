@@ -508,11 +508,29 @@ struct rope *goto_stmt_to_c(struct ast *ast)
     return add_indent(rope);
 }
 
+void handle_type_def(struct ast *ast)
+{
+    const char *name = ast_s(ast_ast(ast, 0));
+    scope_add_typesym(current_scope, name, sym_new(ast));
+}
+
+void handle_alias_def(struct ast *ast)
+{
+    const char *name = ast_s(ast_ast(ast, 0));
+    scope_add_sym(current_scope, name, sym_new(ast));
+}
+
 struct rope *stmt_to_c(struct ast *ast)
 {
     switch (ast->tag) {
         default:
             return expr_stmt_to_c(ast);
+        case TYPE_DEF:
+	    handle_type_def(ast);
+	    return NULL;
+        case ALIAS_DEF:
+	    handle_alias_def(ast);
+	    return NULL;
         case CMPND_STMT:
             return cmpnd_stmt_to_c(ast);
         case IF_STMT:
