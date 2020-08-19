@@ -7,8 +7,10 @@ struct parse {
         enum tok type;
         yylval_type val;
     } *tokens;
+    struct strmap *included_files;
     int n_tokens;
     int pos;
+    int nest_include_level;
 };
 
 enum {
@@ -28,6 +30,8 @@ enum {
     MEMBER_PREC     // .
 };
 
+struct ast *parse_with_include_map(const char *path, struct strmap
+        *included_files, int nest_include_level);
 static struct ast *parse_binop_expr(struct parse *parse, int prec);
 static struct ast *parse_init(struct parse *parse);
 static struct ast *parse_expr(struct parse *parse);
@@ -36,8 +40,16 @@ static struct ast *parse_block(struct parse *parse);
 static struct ast *parse_stmt_list(struct parse *parse);
 static struct ast *parse_stmt(struct parse *parse);
 
-static struct parse *tokenize(FILE *fp)
+static struct parse *tokenize(const char *filepath)
 {
+    FILE *fp = fopen(filepath, "r"); 
+    if (!fp) {
+        perror(filepath);
+        exit(1);
+    }
+
+    lex_filepath = strdup(filepath);
+    linenr = 1;
     yyin = fp;
 
     struct parse *parse = malloc(sizeof *parse);
@@ -56,12 +68,14 @@ static struct parse *tokenize(FILE *fp)
             break;
         }
     }
+    yylex_destroy();
+    fclose(fp);
 
     return parse;
 }
 
 // Get current line number.
-static size_t get_linenr(struct parse *parse)
+static struct loc *get_linenr(struct parse *parse)
 {
     return parse->tokens[parse->pos].val.linenr;
 }
@@ -88,6 +102,8 @@ static void parse_del(struct parse *parse)
                 free(parse->tokens[i].val.u.s);
         }
     }
+    if (parse->nest_include_level == 0)
+        strmap_del(parse->included_files, NULL);
     free(parse->tokens);
     free(parse);
 }
@@ -95,8 +111,9 @@ static void parse_del(struct parse *parse)
 // Print syntax error message.
 static void syntax_error(struct parse *parse)
 {
-    fatal(get_linenr(parse), "invalid syntax");
-    return;
+    struct loc *l = loc_ref(get_linenr(parse));
+    fatal(l, "invalid syntax");
+    loc_unref(l);
 }
 
 // Expect a token of type tok at the current parsing position.
@@ -172,14 +189,14 @@ static struct ast *parse_name(struct parse *parse)
     if (peek_tok(parse)->type != IDENT_TOK)
 	return NULL;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     return ast_new_s(line, NAME, strdup(get_tok(parse)->val.u.s));
 }
 
 // type_def : 'type' name type
 static struct ast *parse_type_def(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     expect(parse, TYPE_TOK);
 
     struct ast *name = parse_name(parse);
@@ -199,7 +216,7 @@ static struct ast *parse_alias_def(struct parse *parse)
     if (!expect(parse, DEFINE_TOK))
         return NULL;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     struct ast *name = parse_name(parse);
     if (name == NULL)
         return NULL;
@@ -210,6 +227,39 @@ static struct ast *parse_alias_def(struct parse *parse)
 
     return ast_new_ast(line, ALIAS_DEF, 2, name, expr);
 }
+
+// include : 'include' str_lit
+static struct ast *parse_include(struct parse *parser)
+{
+    if (!expect(parser, INCLUDE_TOK))
+        return NULL;
+
+    if (peek_tok(parser)->type != STR_TOK)
+        syntax_error(parser);
+
+    const char *path = get_tok(parser)->val.u.s;
+
+    // include file
+    if (strmap_get(parser->included_files, path) == NULL) {
+        FILE *fp = fopen(path, "r");
+        if (fp == NULL) {
+            struct loc *loc = loc_ref(get_linenr(parser));
+            fatal(loc, "%s: %s", path, strerror(errno));
+            loc_unref(loc);
+        }
+
+        struct ast *ast = parse_with_include_map(path, parser->included_files,
+                parser->nest_include_level + 1);
+
+        strmap_add(parser->included_files, path, (void *)0x1234);
+
+        fclose(fp);
+        return ast;
+    }
+
+    return ast_new(get_linenr(parser), ALREADY_INCLUDED);
+}
+
 
 // Parse expression with assignment precedence.
 static struct ast *parse_asgn_expr(struct parse *parse)
@@ -222,7 +272,7 @@ static struct ast *parse_asgn_expr(struct parse *parse)
  */
 static struct ast *parse_expr_list(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     return ast_new_list(line, EXPR_LIST, parse_list(parse, ',', parse_asgn_expr));
 }
 
@@ -233,7 +283,7 @@ static struct ast *parse_expr_list(struct parse *parse)
  */
 static struct ast *parse_primary_expr(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     switch (peek_tok(parse)->type) {
         case IDENT_TOK: {
             char *ident = get_tok(parse)->val.u.s;
@@ -297,7 +347,7 @@ static struct ast *parse_postfix_expr(struct parse *parse)
         return expr;
 
     for (;;) {
-	int line = get_linenr(parse);
+	struct loc *line = get_linenr(parse);
         switch (peek_tok(parse)->type) {
             case DEC_TOK: {
                 parse->pos++;
@@ -361,7 +411,7 @@ err:
  */
 static struct ast *parse_unary_expr(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     enum ast_tag op = INVALID_AST_TAG;
 
     switch (peek_tok(parse)->type) {
@@ -418,7 +468,7 @@ static struct ast *parse_cast_expr(struct parse *parse)
     if (expr == NULL)
         goto err0;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     if (peek_tok(parse)->type == AS_TOK) {
         parse->pos++;
         struct ast *type = parse_type(parse);
@@ -461,7 +511,7 @@ static struct ast *parse_binop_expr(struct parse *parse, int prec)
         enum ast_tag op;
         int rprec, next_prec;
 
-	int line = get_linenr(parse);
+	struct loc *line = get_linenr(parse);
         switch (peek_tok(parse)->type) {
             case ',':
                 op = COMMA_EXPR;
@@ -685,7 +735,7 @@ static struct ast *parse_expr(struct parse *parse)
 
 static struct ast *parse_case(struct parse *parse)
 {
-    int linenr = get_linenr(parse);
+    struct loc *linenr = get_linenr(parse);
 
     switch (peek_tok(parse)->type) {
         case CASE_TOK: {
@@ -724,7 +774,7 @@ static struct ast *parse_case_list(struct parse *parse)
     struct ast_list *head = NULL;
     struct ast_list **tailp = &head;
 
-    int linenr = get_linenr(parse);
+    struct loc *linenr = get_linenr(parse);
 
     for (;;) {
         int pos = parse->pos;
@@ -751,7 +801,7 @@ static struct ast *parse_switch_stmt(struct parse *parse)
     if (!expect(parse, SWITCH_TOK))
         goto err0;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     struct ast *expr = parse_expr(parse);
     if (expr == NULL)
         goto err0;
@@ -785,7 +835,7 @@ static struct ast *parse_if_stmt(struct parse *parse)
     if (!expect(parse, IF_TOK))
         goto err0;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
 
     struct ast *expr = parse_expr(parse);
     if (expr == NULL)
@@ -823,7 +873,7 @@ static struct ast *parse_while_stmt(struct parse *parse)
     if (!expect(parse, WHILE_TOK))
         return NULL;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
 
     struct ast *expr = parse_expr(parse);
     if (expr == NULL)
@@ -849,7 +899,7 @@ static struct ast *parse_do_stmt(struct parse *parse)
     if (!expect(parse, DO_TOK))
         goto err0;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
 
     struct ast *block = parse_block(parse);
 
@@ -879,7 +929,7 @@ static struct ast *parse_for_stmt(struct parse *parse)
     if (!expect(parse, FOR_TOK))
         goto err0;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
 
     struct ast *init_expr = parse_expr(parse);
     if (!expect(parse, ';'))
@@ -914,7 +964,7 @@ err0:
  */
 static struct ast *parse_label_stmt(struct parse *parse)
 {
-    size_t line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     struct ast *name = parse_name(parse);
     if (name == NULL)
         return NULL;
@@ -934,7 +984,7 @@ static struct ast *parse_goto_stmt(struct parse *parse)
     if (!expect(parse, GOTO_TOK))
         return NULL;
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
 
     struct ast *name = parse_name(parse);
     if (name == NULL)
@@ -954,7 +1004,7 @@ static struct ast *parse_goto_stmt(struct parse *parse)
  */
 static struct ast *parse_stmt(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     switch (peek_tok(parse)->type)
     {
         case IF_TOK:
@@ -1017,7 +1067,7 @@ static struct ast *parse_stmt(struct parse *parse)
  */
 static struct ast *parse_param(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     if (peek_tok(parse)->type == IDENT_TOK) {
         struct ast *name = ast_new_s(line, NAME, strdup(get_tok(parse)->val.u.s));
 
@@ -1047,7 +1097,7 @@ static struct ast *parse_decl(struct parse *parse)
     if (type == NULL)
         return NULL;
 
-    return ast_new_ast(name->line, DECL, 2, name, type);
+    return ast_new_ast(name->loc, DECL, 2, name, type);
 }
 
 /* param_list : (param_list ',')*
@@ -1076,7 +1126,7 @@ static struct ast *parse_param_list(struct parse *parse)
         parse->pos++;
     }
 
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
 
     if (peek_tok(parse)->type == ELLIPSIS_TOK) {
         *tailp = ast_list_new(ast_new(get_linenr(parse), VARARG_TYPE));
@@ -1092,7 +1142,7 @@ static struct ast *parse_param_list(struct parse *parse)
 static struct ast *parse_decl_list(struct parse *parse)
 {
     struct ast_list **tailp, *head = parse_list(parse, ',', parse_decl);
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
 
     return ast_new_list(line, STRUCT_EXPR, head);
 }
@@ -1104,7 +1154,7 @@ static struct ast *parse_decl_list(struct parse *parse)
  */
 static struct ast *parse_type(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     switch (peek_tok(parse)->type) {
         case '^': {
             parse->pos++;
@@ -1156,7 +1206,7 @@ static struct ast *parse_type(struct parse *parse)
 
 static struct ast *parse_stmt_list(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     return ast_new_list(line, STMT_LIST, parse_list(parse, ';', parse_stmt));
 }
 
@@ -1169,7 +1219,7 @@ static struct ast *parse_block(struct parse *parse)
 
 static struct ast *parse_init_list(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     return ast_new_list(line, INIT_EXPR, parse_list(parse, ',', parse_init));
 }
 
@@ -1185,10 +1235,11 @@ static struct ast *parse_init(struct parse *parse)
 /* extern_def : ident type
  *            | ident type '=' expr
  *            | ident '(' param_list ')' type block
+ *            | 'include' string
  */
 static struct ast *parse_extern_def(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     switch (peek_tok(parse)->type) {
         case IDENT_TOK: {
             struct ast *name = ast_new_s(line, NAME,
@@ -1224,6 +1275,8 @@ static struct ast *parse_extern_def(struct parse *parse)
 	    return parse_type_def(parse);
 	case DEFINE_TOK:
 	    return parse_alias_def(parse);
+        case INCLUDE_TOK:
+            return parse_include(parse);
     }
 
     return NULL;
@@ -1234,23 +1287,29 @@ static struct ast *parse_extern_def(struct parse *parse)
  */
 struct ast *parse_program(struct parse *parse)
 {
-    int line = get_linenr(parse);
+    struct loc *line = get_linenr(parse);
     struct ast_list *extern_def_list = parse_list(parse, ';', parse_extern_def);
 
     if (peek_tok(parse)->type != EOF_TOK)
         syntax_error(parse);
 
-    return ast_new_list(line, PROGRAM, extern_def_list);
+    return ast_new_list(line, SOURCE_FILE, extern_def_list);
 }
 
-struct ast *parse(FILE *fp)
+struct ast *parse_with_include_map(const char *path, struct strmap
+        *included_files, int nest_include_lev)
 {
-    struct parse *parse = tokenize(fp);
-
+    struct parse *parse = tokenize(path);
+    parse->included_files = included_files;
+    parse->nest_include_level = nest_include_lev;
     struct ast *ast = parse_program(parse);
 
     parse_del(parse);
-    yylex_destroy();
 
     return ast;
+}
+
+struct ast *parse(const char *path)
+{
+    return parse_with_include_map(path, strmap_new(1024), 0);
 }

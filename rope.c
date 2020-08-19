@@ -130,7 +130,7 @@ struct rope *rope_new_fmt(const char *fmt, ...)
 
     size_t n_written = vsnprintf(data, n_left, fmt, va) + 1;
     if (n_written > n_left)
-        fatal(-1, "not enough space in rope buffer");
+        fatal(NULL, "not enough space in rope buffer");
 
     rope_buf.n += n_written;
 

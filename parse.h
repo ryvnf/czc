@@ -1,6 +1,6 @@
 #ifndef PARSE_H
 #define PARSE_H
 
-struct ast *parse(FILE *file);
+struct ast *parse(const char *path);
 
 #endif /* !defined PARSE_H */

@@ -293,29 +293,29 @@ static struct type *type_from_func_ast(struct ast *ast)
         }
 
         if (is_void_type(param_types[i]))
-            fatal(param_asts[i]->line, "function parameter cannot be of void type");
+            fatal(param_asts[i]->loc, "function parameter cannot be of void type");
 
         if (is_extern_type(param_types[i]))
-            fatal(param_asts[i]->line, "function parameter cannot be of incomplete type");
+            fatal(param_asts[i]->loc, "function parameter cannot be of incomplete type");
 
         if (is_array_type(param_types[i]))
-            fatal(param_asts[i]->line, "function parameter cannot be of array type");
+            fatal(param_asts[i]->loc, "function parameter cannot be of array type");
 
         if (is_func_type(param_types[i]))
-            fatal(param_asts[i]->line, "function parameter cannot be of function type");
+            fatal(param_asts[i]->loc, "function parameter cannot be of function type");
     }
 
     struct ast *ret_ast = ast_ast(ast, 1);
     struct type *ret_type = type_from_ast(ret_ast);
 
     if (is_extern_type(ret_type))
-        fatal(ret_ast->line, "function return value cannot be of incomplete type");
+        fatal(ret_ast->loc, "function return value cannot be of incomplete type");
 
     if (is_array_type(ret_type))
-        fatal(ret_ast->line, "function return value cannot be of array type");
+        fatal(ret_ast->loc, "function return value cannot be of array type");
 
     if (is_func_type(ret_type))
-        fatal(ret_ast->line, "function return value cannot be of function type");
+        fatal(ret_ast->loc, "function return value cannot be of function type");
 
     return new_func_type(ret_type, n_params, param_types, is_vararg);
 }
@@ -327,7 +327,7 @@ static struct type *type_from_name_ast(struct ast *ast)
     struct type *type = scope_get_type(current_scope, name);
 
     if (type == NULL)
-        fatal(ast->line, "undefined type name '%s'", name);
+        fatal(ast->loc, "undefined type name '%s'", name);
 
     return type;
 }
@@ -363,7 +363,7 @@ static struct type *type_from_struct_ast(struct ast *ast)
         for (size_t j = i + 1; j < n_fields; ++j) {
             const char *a = type->fields[i].name, *b = type->fields[j].name;
             if (strcmp(a, b) == 0)
-                fatal(ast->line, "duplicate member %s in structure", a);
+                fatal(ast->loc, "duplicate member %s in structure", a);
         }
     }
 

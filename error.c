@@ -1,13 +1,13 @@
 #include "zc.h"
 
-void error(int line, const char *fmt, ...) {
+void error(struct loc *loc, const char *fmt, ...) {
 	assert(fmt);
 
 	va_list va;
 	va_start(va, fmt);
 
-        if (line >= 0)
-            fprintf(stderr, "%d: error: ", line);
+        if (loc != NULL)
+            fprintf(stderr, "%s:%d: error: ", loc->file, loc->line);
         else
             fprintf(stderr, "error: ");
 
@@ -17,14 +17,14 @@ void error(int line, const char *fmt, ...) {
 	va_end(va);
 }
 
-void fatal(int line, const char *fmt, ...) {
+void fatal(struct loc *loc, const char *fmt, ...) {
 	assert(fmt);
 
 	va_list va;
 	va_start(va, fmt);
 
-        if (line >= 0)
-            fprintf(stderr, "%d: error: ", line);
+        if (loc != NULL)
+            fprintf(stderr, "%s:%d: error: ", loc->file, loc->line);
         else
             fprintf(stderr, "error: ");
 

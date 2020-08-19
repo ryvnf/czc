@@ -2,10 +2,10 @@
 #define ERROR_H
 
 /* print error message */
-void error(int line, const char *fmt, ...);
+void error(struct loc *loc, const char *fmt, ...);
 
 /* print error message and exit program */
-noreturn void fatal(int line, const char *fmt, ...);
+noreturn void fatal(struct loc *loc, const char *fmt, ...);
 
 /* print error message and abort program */
 noreturn void bug(const char *fmt, ...);

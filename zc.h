@@ -11,8 +11,10 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/wait.h>
 
+#include "loc.h"
 #include "ast.h"
 #include "type.h"
 #include "lex.h"
@@ -24,6 +26,7 @@
 #include "sym.h"
 #include "codegen.h"
 #include "scope.h"
+#include "zc.h"
 
 // The amount of nested loops (used to know when continue or break is allowed)
 extern int zc_loop_level;

@@ -1,50 +1,50 @@
 #include "zc.h"
 
 // Create a node with string value.
-struct ast *ast_new(int line, enum ast_tag tag)
+struct ast *ast_new(struct loc *loc, enum ast_tag tag)
 {
     struct ast *ast = malloc(sizeof *ast);
+    ast->loc = loc;
     ast->tag = tag;
-    ast->line = line;
     return ast;
 }
 
 // Create a node with string value.
-struct ast *ast_new_s(int line, enum ast_tag tag, char *s)
+struct ast *ast_new_s(struct loc *loc, enum ast_tag tag, char *s)
 {
     struct ast_s *ast = malloc(sizeof *ast);
     ast->ast.tag = tag;
-    ast->ast.line = line;
+    ast->ast.loc = loc;
     ast->s = strdup(s);
     return (struct ast *)ast;
 }
 
 // Create a node with integer value.
-struct ast *ast_new_i(int line, enum ast_tag tag, long long int i)
+struct ast *ast_new_i(struct loc *loc, enum ast_tag tag, long long int i)
 {
     struct ast_i *ast = malloc(sizeof *ast);
     ast->ast.tag = tag;
-    ast->ast.line = line;
+    ast->ast.loc = loc;
     ast->i = i;
     return (struct ast *)ast;
 }
 
 // Create a node with float value.
-struct ast *ast_new_f(int line, enum ast_tag tag, double f)
+struct ast *ast_new_f(struct loc *loc, enum ast_tag tag, double f)
 {
     struct ast_f *ast = malloc(sizeof *ast);
     ast->ast.tag = tag;
-    ast->ast.line = line;
+    ast->ast.loc = loc;
     ast->f = f;
     return (struct ast *)ast;
 }
 
 // Create a node with children.
-struct ast *ast_new_ast(int line, enum ast_tag tag, size_t n_childs, ...)
+struct ast *ast_new_ast(struct loc *loc, enum ast_tag tag, size_t n_childs, ...)
 {
     struct ast_ast *ast = malloc(sizeof *ast + n_childs * sizeof *ast->childs);
     ast->ast.tag = tag;
-    ast->ast.line = line;
+    ast->ast.loc = loc;
     ast->n_childs = n_childs;
     
     va_list va;
@@ -58,7 +58,7 @@ struct ast *ast_new_ast(int line, enum ast_tag tag, size_t n_childs, ...)
 }
 
 // Create a node with the children from the nodes in the ast_list.
-struct ast *ast_new_list(int line, enum ast_tag tag, struct ast_list *ast_list)
+struct ast *ast_new_list(struct loc *loc, enum ast_tag tag, struct ast_list *ast_list)
 {
     size_t n_childs = 0;
     for (struct ast_list *i = ast_list; i != NULL; i = i->next)
@@ -66,7 +66,7 @@ struct ast *ast_new_list(int line, enum ast_tag tag, struct ast_list *ast_list)
 
     struct ast_ast *ast = malloc(sizeof *ast + n_childs * sizeof *ast->childs);
     ast->ast.tag = tag;
-    ast->ast.line = line;
+    ast->ast.loc = loc;
     ast->n_childs = n_childs;
 
     size_t i = 0;
@@ -201,4 +201,38 @@ void ast_print(struct ast *ast, int indent)
             ast_print_childs(ast, indent);
             break;
     }
+}
+
+bool ast_equals(struct ast *a, struct ast *b)
+{
+    if (a->tag != b->tag)
+        return false;
+
+    switch (a->tag) {
+        case AST_NO_VAL:
+            return true;
+        case AST_S:
+            return strcmp(ast_s(a), ast_s(b));
+        case AST_I:
+            return ast_i(a) == ast_i(b);
+        case AST_F:
+            return ast_f(a) == ast_f(b);
+        case AST_AST: {
+            size_t n_a_asts, n_b_asts;
+            struct ast **a_asts = ast_asts(a, &n_a_asts);
+            struct ast **b_asts = ast_asts(b, &n_b_asts);
+
+            if (n_a_asts != n_b_asts)
+                return false;
+
+            for (size_t i = 0; i < n_a_asts; i++) {
+                if (!ast_equals(a_asts[i], b_asts[i]))
+                    return false;
+            }
+
+            return true;
+        }
+    }
+
+    bug("unknown AST-type");
 }

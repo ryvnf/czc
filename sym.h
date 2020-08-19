@@ -23,6 +23,7 @@ struct decl_sym {
     struct sym sym;
     char *c_name;
     struct type *type;
+    bool is_defined;
 };
 
 // Type symbol.

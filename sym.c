@@ -52,7 +52,7 @@ struct sym *sym_res(struct sym *sym)
             } else {
                 type_sym->type = type_from_ast(ast);
                 if (!resolve_selfref(&type_sym->type, false))
-                    fatal(sym->loc->line, "type cannot reference itself in "
+                    fatal(sym->loc->loc, "type cannot reference itself in "
                             "this context");
                 add_type_decl(type_sym->type);
             }

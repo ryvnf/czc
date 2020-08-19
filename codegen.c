@@ -31,7 +31,7 @@ void check_lbl_list(struct lbl *lbl_node)
         return;
 
     if (!lbl_node->defined)
-        fatal(lbl_node->first_use->line, "undefined label %s", lbl_node->name);
+        fatal(lbl_node->first_use->loc, "undefined label %s", lbl_node->name);
 
     free(lbl_node->name);
     free(lbl_node->c_name);
@@ -241,7 +241,7 @@ struct rope *if_stmt_to_c(struct ast *ast)
 
     struct expr expr = eval_expr(NULL, expr_ast);
     if (!is_bool_type(expr.type))
-        fatal(-1, "condition has to be of boolean type");
+        fatal(NULL, "condition has to be of boolean type");
 
     rope = rope_new_tree(rope, expr.rope);
     rope = rope_new_tree(rope, rparen_sp_rope);
@@ -335,7 +335,7 @@ struct rope *switch_stmt_to_c(struct ast *ast)
 
     struct expr expr = eval_expr(NULL, expr_ast);
     if (!is_bool_type(expr.type) && !is_int_type(expr.type))
-        fatal(ast->line, "expression has to be of boolean or integer type");
+        fatal(ast->loc, "expression has to be of boolean or integer type");
 
     rope = rope_new_tree(rope, expr.rope);
     rope = rope_new_tree(rope, rparen_sp_rope);
@@ -357,7 +357,7 @@ struct rope *while_stmt_to_c(struct ast *ast)
 
     struct expr expr = eval_expr(NULL, expr_ast);
     if (!is_bool_type(expr.type))
-        fatal(ast->line, "condition has to be of boolean type");
+        fatal(ast->loc, "condition has to be of boolean type");
 
     rope = rope_new_tree(rope, expr.rope);
     rope = rope_new_tree(rope, rparen_sp_rope);
@@ -385,7 +385,7 @@ struct rope *do_while_stmt_to_c(struct ast *ast)
 
     struct expr expr = eval_expr(NULL, expr_ast);
     if (!is_bool_type(expr.type))
-        fatal(ast->line, "condition has to be of boolean type");
+        fatal(ast->loc, "condition has to be of boolean type");
 
     rope = rope_new_tree(rope, sp_while_sp_lparen_rope);
     rope = rope_new_tree(rope, expr.rope);
@@ -417,7 +417,7 @@ struct rope *for_stmt_to_c(struct ast *ast)
 
         struct expr cond_expr = eval_expr(NULL, cond_expr_ast);
         if (!is_bool_type(cond_expr.type))
-            fatal(ast->line, "condition has to be of boolean type");
+            fatal(ast->loc, "condition has to be of boolean type");
 
         rope = rope_new_tree(rope, cond_expr.rope);
     }
@@ -446,16 +446,16 @@ struct rope *return_stmt_to_c(struct ast *ast)
 
     if (expr_ast == NULL) {
         if (zc_func_ret_type != void_type)
-            fatal(ast->line, "missing return value in non-void function");
+            fatal(ast->loc, "missing return value in non-void function");
         return return_semi_rope;
     }
 
     struct expr expr = eval_expr(zc_func_ret_type, expr_ast);
 
     if (zc_func_ret_type == void_type)
-        fatal(ast->line, "return with value in function returning void");
+        fatal(ast->loc, "return with value in function returning void");
     if (common_type(zc_func_ret_type, expr.type) != zc_func_ret_type)
-        fatal(ast->line, "invalid type for return");
+        fatal(ast->loc, "invalid type for return");
 
     struct rope *rope = rope_new_tree(return_sp_rope, expr.rope);
     rope = rope_new_tree(rope, semi_rope);
@@ -465,14 +465,14 @@ struct rope *return_stmt_to_c(struct ast *ast)
 struct rope *break_stmt_to_c(struct ast *ast)
 {
     if (zc_loop_level == 0)
-        fatal(ast->line, "break not inside a loop");
+        fatal(ast->loc, "break not inside a loop");
     return add_indent_nl(break_semi_rope);
 }
 
 struct rope *continue_stmt_to_c(struct ast *ast)
 {
     if (zc_loop_level == 0)
-        fatal(ast->line, "continue not inside a loop");
+        fatal(ast->loc, "continue not inside a loop");
     return add_indent_nl(continue_semi_rope);
 }
 
@@ -565,7 +565,7 @@ struct rope *stmt_list_to_c(struct rope *rope, struct ast *ast,
     for (size_t i = 0; i < n_stmt_asts; ++i) {
         if (stmt_asts[i]->tag == FALLTHROUGH_STMT) {
             if (fallthrough == NULL || i != n_stmt_asts - 1)
-                fatal(stmt_asts[i]->line, "fallthrough not allowed here");
+                fatal(stmt_asts[i]->loc, "fallthrough not allowed here");
 
             *fallthrough = true;
             break;
@@ -619,10 +619,10 @@ struct rope *func_body_to_c(struct ast *ast)
 void add_global_decl(struct decl_sym *decl)
 {
     if (is_void_type(decl->type))
-        fatal(decl->sym.loc->line, "cannot declare a variable of void type");
+        fatal(decl->sym.loc->loc, "cannot declare a variable of void type");
 
     if (is_extern_type(decl->type))
-        fatal(decl->sym.loc->line, "cannot declare a variable of incomplete type");
+        fatal(decl->sym.loc->loc, "cannot declare a variable of incomplete type");
 
     add_type_decl(decl->type);
     struct rope *rope = decl_to_c(decl);
@@ -634,13 +634,13 @@ void add_global_decl(struct decl_sym *decl)
 void add_local_decl(struct decl_sym *decl)
 {
     if (is_void_type(decl->type))
-        fatal(decl->sym.loc->line, "cannot declare a variable of void type");
+        fatal(decl->sym.loc->loc, "cannot declare a variable of void type");
 
     if (is_extern_type(decl->type))
-        fatal(decl->sym.loc->line, "cannot declare a variable of incomplete type");
+        fatal(decl->sym.loc->loc, "cannot declare a variable of incomplete type");
 
     if (is_func_type(decl->type))
-        fatal(decl->sym.loc->line, "cannot declare a function here");
+        fatal(decl->sym.loc->loc, "cannot declare a function here");
 
     add_type_decl(decl->type);
     struct rope *rope = NULL;
@@ -759,10 +759,10 @@ struct rope *init_ast_to_c(struct type *type, struct ast *init_ast, size_t nest_
     struct type *got_type = target_type(type, expr.type);
 
     if (got_type == NULL)
-        fatal(init_ast->line, "invalid type for initializer");
+        fatal(init_ast->loc, "invalid type for initializer");
 
     if (!type_equals(got_type, type))
-        fatal(init_ast->line, "invalid type for initializer");
+        fatal(init_ast->loc, "invalid type for initializer");
 
     return expr.rope;
 }
@@ -793,6 +793,112 @@ void append_def(struct rope *rope)
     zc_prog_defs_rope = rope_new_tree(zc_prog_defs_rope, rope);
 }
 
+void decl_pass(struct ast *ast)
+{
+    size_t n_extern_defs;
+    struct ast **extern_defs = ast_asts(ast, &n_extern_defs);
+
+    for (size_t i = 0; i < n_extern_defs; ++i) {
+        struct ast *extern_def = extern_defs[i];
+        struct ast *loc;
+        bool is_defined = false;
+
+        switch (extern_def->tag) {
+            case TYPE_DEF: {
+                loc = extern_def;
+                const char *name = ast_s(ast_ast(loc, 0));
+                struct type *type = scope_get_type(current_scope, name);
+                struct ast *def_type_ast = ast_ast(loc, 1);
+                scope_add_typesym(current_scope, name, sym_new(loc));
+
+                if (def_type_ast != NULL) {
+                    struct type *def_type = type_from_ast(def_type_ast);
+
+                    if (type != NULL && !type_equals(type, def_type))
+                        fatal(extern_def->loc, "%s is redefined as a different type", name);
+
+                    type_del(def_type);
+                }
+
+                continue;
+            }
+            case ASGN_EXPR:
+            case FUNC_DEF:
+                is_defined = true;
+                loc = ast_ast(extern_def, 0);
+                break;
+            case ALIAS_DEF:
+            case DECL: {
+                loc = extern_def;
+                break;
+            }
+            case SOURCE_FILE:
+                decl_pass(extern_def);
+                continue;
+            case ALREADY_INCLUDED:
+                continue;
+            default:
+                bug("%s should not be here", ast_tag_name(extern_def->tag));
+        }
+        const char *name = ast_s(ast_ast(loc, 0));
+        struct sym *sym = scope_get_sym(current_scope, name);
+
+        bool redecl = false;
+
+        if (sym != NULL) {
+            if (sym->tag == DECL_SYM && loc->tag == DECL) {
+                struct decl_sym *decl_sym = (struct decl_sym *)sym;
+
+                if (is_defined && decl_sym->is_defined)
+                    fatal(extern_def->loc, "%s is redefined", name);
+
+                struct type *type = type_from_ast(ast_ast(loc, 1));
+
+                if (!type_equals(type, ((struct decl_sym *)sym)->type))
+                    fatal(extern_def->loc, "%s is declared as different type", name);
+
+                type_del(type);
+            } else {
+                fatal(extern_def->loc, "%s is redefined", name);
+            }
+            redecl = true;
+        }
+
+        struct sym *new_sym = sym_new(loc);
+
+        if (is_defined)
+            ((struct decl_sym *)new_sym)->is_defined = true;
+
+        if (!redecl)
+            scope_add_sym(current_scope, name, new_sym);
+    }
+}
+
+void codegen_pass(struct ast *ast)
+{
+    size_t n_extern_defs;
+    struct ast **extern_defs = ast_asts(ast, &n_extern_defs);
+
+    for (size_t i = 0; i < n_extern_defs; ++i) {
+        struct ast *extern_def = extern_defs[i];
+
+        switch (extern_def->tag) {
+            case ASGN_EXPR:
+                append_def(data_def_to_c(extern_def));
+                break;
+            case FUNC_DEF:
+                append_def(func_def_to_c(extern_def));
+                break;
+            case TYPE_DEF: {
+                scope_get_type(current_scope, ast_s(ast_ast(extern_def, 0)));
+                continue;
+            }
+            case SOURCE_FILE:
+                codegen_pass(extern_def);
+        }
+    }
+}
+
 void codegen_to_file(struct ast *ast, FILE *fp)
 {
     struct scope *predecl_symtbl = scope_new(NULL, 1, 64);
@@ -820,55 +926,8 @@ void codegen_to_file(struct ast *ast, FILE *fp)
     zc_prog_decls_rope = NULL;
     zc_prog_defs_rope = NULL;
 
-    size_t n_extern_defs;
-    struct ast **extern_defs = ast_asts(ast, &n_extern_defs);
-
-    for (size_t i = 0; i < n_extern_defs; ++i) {
-        struct ast *extern_def = extern_defs[i];
-        struct ast *loc;
-        switch (extern_def->tag) {
-            case TYPE_DEF: {
-                loc = extern_def;
-                const char *name = ast_s(ast_ast(loc, 0));
-                if (scope_get_type(current_scope, name) != NULL)
-                    fatal(extern_def->line, "global type %s is already defined", name);
-                scope_add_typesym(current_scope, name, sym_new(loc));
-                continue;
-            }
-            case ASGN_EXPR:
-            case FUNC_DEF:
-                loc = ast_ast(extern_def, 0);
-                break;
-            case ALIAS_DEF:
-            case DECL: {
-                loc = extern_def;
-                break;
-            }
-        }
-        const char *name = ast_s(ast_ast(loc, 0));
-
-        if (scope_get_sym(current_scope, name) != NULL)
-            fatal(extern_def->line, "global identifier %s is already declared", name);
-
-        scope_add_sym(current_scope, name, sym_new(loc));
-    }
-
-    for (size_t i = 0; i < n_extern_defs; ++i) {
-        struct ast *extern_def = extern_defs[i];
-
-        switch (extern_def->tag) {
-            case ASGN_EXPR:
-                append_def(data_def_to_c(extern_def));
-                break;
-            case FUNC_DEF:
-                append_def(func_def_to_c(extern_def));
-                break;
-            case TYPE_DEF: {
-                scope_get_type(current_scope, ast_s(ast_ast(extern_def, 0)));
-                continue;
-            }
-        }
-    }
+    decl_pass(ast);
+    codegen_pass(ast);
 
     ast_unref(ast);
 

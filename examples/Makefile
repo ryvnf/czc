@@ -1,5 +1,5 @@
 ELF=cat sort life
-CZC=../czc
+CZC=czc
 C_FILES=$(patsubst %,%.c,$(ELF))
 
 .PHONY: all c

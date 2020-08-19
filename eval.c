@@ -246,17 +246,17 @@ struct type *ptr_decay(struct type *type)
 
 void invalid_type(struct ast *ast)
 {
-    fatal(ast->line, "invalid operand types for %s", op_to_name(ast->tag));
+    fatal(ast->loc, "invalid operand types for %s", op_to_name(ast->tag));
 }
 
 void incompatible_type(struct ast *ast)
 {
-    fatal(ast->line, "incompatible types for %s", op_to_name(ast->tag));
+    fatal(ast->loc, "incompatible types for %s", op_to_name(ast->tag));
 }
 
 void not_lval(struct ast *ast)
 {
-    fatal(ast->line, "operand to %s is not an lvalue", op_to_name(ast->tag));
+    fatal(ast->loc, "operand to %s is not an lvalue", op_to_name(ast->tag));
 }
 
 void require_type(struct ast *ast, struct type *type, enum type_tag accept)
@@ -466,14 +466,14 @@ struct type *eval_call_type(struct ast *ast)
 
     if ((n_arg_asts != n_param_types && !has_vararg) || n_arg_asts <
             n_param_types)
-        fatal(ast->line, "invalid number of arguments");
+        fatal(ast->loc, "invalid number of arguments");
 
     for (size_t i = 0; i < n_param_types; i++) {
         struct type *got_type = eval_type(param_types[i], arg_asts[i]);
         struct type *type = target_type(param_types[i], got_type);
 
         if (type == NULL || !type_equals(param_types[i], type))
-            fatal(ast->line, "invalid type for argument %zu in function call", i + 1);
+            fatal(ast->loc, "invalid type for argument %zu in function call", i + 1);
     }
 
     return called_func_type->ret;
@@ -497,7 +497,7 @@ struct type *eval_member_type(struct ast *ast)
             return type_dup(fields[i].type, LVAL_TYPE_FLAG);
     }
 
-    fatal(ast->line, "structure has no member %s", member_id);
+    fatal(ast->loc, "structure has no member %s", member_id);
     return NULL;
 }
 
@@ -522,12 +522,12 @@ struct type *eval_name_type(struct type *t, struct ast *ast)
     struct sym *sym = scope_get_sym(current_scope, name);
 
     if (sym == NULL)
-        fatal(ast->line, "undeclared identifier '%s'", name);
+        fatal(ast->loc, "undeclared identifier '%s'", name);
 
     if (sym->tag == DECL_SYM) {
         struct type *type = ((struct decl_sym *)sym)->type;
         if (type == NULL)
-            fatal(ast->line, "undeclared identifier '%s'", name);
+            fatal(ast->loc, "undeclared identifier '%s'", name);
         return type_dup(type, LVAL_TYPE_FLAG);
     } else if (sym->tag == ALIAS_SYM) {
         struct expr expr = eval_expr(t, ((struct alias_sym *)sym)->ast);
@@ -564,20 +564,20 @@ struct type *eval_init_type(struct type *t, struct ast *ast)
         struct array_type *a_t = array_type(t);
 
         if (a_t->len < n_childs)
-            fatal(ast->line, "excess elements in array initializer");
+            fatal(ast->loc, "excess elements in array initializer");
 
         for (size_t i = 0; i < n_childs; i++) {
             struct type *got_type = eval_type(a_t->of, childs[i]);
             struct type *type = target_type(a_t->of, got_type);
 
             if (type == NULL || !type_equals(a_t->of, type))
-                fatal(ast->line, "invalid type in array initializer");
+                fatal(ast->loc, "invalid type in array initializer");
         }
     } else if (is_struct_type(t)) {
         struct struct_type *s_t = struct_type(t);
 
         if (s_t->n_fields < n_childs)
-            fatal(ast->line, "excess elements in struct initializer");
+            fatal(ast->loc, "excess elements in struct initializer");
 
         for (size_t i = 0; i < n_childs; i++) {
             struct type *field_type = s_t->fields[i].type;
@@ -585,10 +585,10 @@ struct type *eval_init_type(struct type *t, struct ast *ast)
             struct type *type = target_type(field_type, got_type);
 
             if (type == NULL || !type_equals(field_type, type))
-                fatal(ast->line, "invalid type in struct initializer");
+                fatal(ast->loc, "invalid type in struct initializer");
         }
     } else {
-        fatal(ast->line, "invalid type");
+        fatal(ast->loc, "invalid type");
     }
 
     return type_dup(t, 0);
@@ -748,19 +748,19 @@ struct type *eval_type(struct type *t, struct ast *ast)
     }
 
     if (type && type_type(type->tag) == SELFREF_TYPE_FLAG)
-        fatal(ast->line, "type cannot refer to itself in this context");
+        fatal(ast->loc, "type cannot refer to itself in this context");
 
     return type;
 }
 
-size_t alignof_type(int line, struct type *type)
+size_t alignof_type(struct loc *loc, struct type *type)
 {
     switch (type_type(type->tag)) {
         case VOID_TYPE_FLAG:
-            fatal(line, "cannot compute the size of void");
+            fatal(loc, "cannot compute the size of void");
             return 0;
         case FUNC_TYPE_FLAG:
-            fatal(line, "cannot compute the size of a function");
+            fatal(loc, "cannot compute the size of a function");
             return 0;
         case BOOL_TYPE_FLAG:
         case INT_TYPE_FLAG:
@@ -772,7 +772,7 @@ size_t alignof_type(int line, struct type *type)
             return sizeof (void *);
         case ARRAY_TYPE_FLAG: {
             struct type *elem_type = array_type(type)->of;
-            return alignof_type(line, elem_type);
+            return alignof_type(loc, elem_type);
         }
         case STRUCT_TYPE_FLAG: {
             size_t n_fields = struct_type(type)->n_fields;
@@ -780,7 +780,7 @@ size_t alignof_type(int line, struct type *type)
             size_t max_align = 1;
 
             for (size_t i = 0; i < n_fields; i++) {
-                size_t align = alignof_type(line, fields[i].type);
+                size_t align = alignof_type(loc, fields[i].type);
                 if (align > max_align)
                     max_align = align;
             }
@@ -805,14 +805,14 @@ size_t align_size(size_t size, size_t align)
  * TODO: The size calculating will probably be wrong on some architectures.
  * Hopefully it should be accurate on desktop comptuers.
  */
-size_t sizeof_type(int line, struct type *type)
+size_t sizeof_type(struct loc *loc, struct type *type)
 {
     switch (type_type(type->tag)) {
         case VOID_TYPE_FLAG:
-            fatal(line, "cannot compute the size of void");
+            fatal(loc, "cannot compute the size of void");
             return 0;
         case FUNC_TYPE_FLAG:
-            fatal(line, "cannot compute the size of a function");
+            fatal(loc, "cannot compute the size of a function");
             return 0;
         case BOOL_TYPE_FLAG:
         case INT_TYPE_FLAG:
@@ -824,8 +824,8 @@ size_t sizeof_type(int line, struct type *type)
             return sizeof (void *);
         case ARRAY_TYPE_FLAG: {
             struct type *elem_type = array_type(type)->of;
-            size_t elem_size = sizeof_type(line, elem_type);
-            size_t elem_align = alignof_type(line, elem_type);
+            size_t elem_size = sizeof_type(loc, elem_type);
+            size_t elem_align = alignof_type(loc, elem_type);
             size_t n_elems = array_type(type)->len;
             return align_size(elem_size, elem_align) * n_elems;
         }
@@ -835,8 +835,8 @@ size_t sizeof_type(int line, struct type *type)
             size_t size = 0;
 
             for (size_t i = 0; i < n_fields; i++) {
-                size_t field_size = sizeof_type(line, fields[i].type);
-                size_t field_align = alignof_type(line, fields[i].type);
+                size_t field_size = sizeof_type(loc, fields[i].type);
+                size_t field_align = alignof_type(loc, fields[i].type);
                 size += align_size(field_size, field_align);
             }
 
@@ -854,10 +854,10 @@ size_t eval_name_size(struct ast *ast)
 
     struct sym *sym = scope_get_sym(current_scope, name);
     if (sym == NULL)
-        fatal(ast->line, "undeclared identifier '%s'", name);
+        fatal(ast->loc, "undeclared identifier '%s'", name);
 
     if (sym->tag != ALIAS_SYM) {
-        fatal(ast->line, "accessing variables or functions is allowed in this "
+        fatal(ast->loc, "accessing variables or functions is allowed in this "
                 "context");
         unreachable();
     }
@@ -912,7 +912,7 @@ size_t eval_size(struct ast *ast)
             return -eval_size(ast_ast(ast, 0));
 
         case SIZEOF_EXPR:
-            return sizeof_type(ast->line, eval_type(NULL, ast_ast(ast, 0)));
+            return sizeof_type(ast->loc, eval_type(NULL, ast_ast(ast, 0)));
 
         case INT_CONST:
             return ast_i(ast);
@@ -922,20 +922,20 @@ size_t eval_size(struct ast *ast)
 
         case TRUE_TOK:
         case FALSE_TOK:
-            fatal(ast->line, "boolean constants are not implemented in this "
+            fatal(ast->loc, "boolean constants are not implemented in this "
                     "context (yet)");
             unreachable();
             return 0;
 
         case NULL_TOK:
-            fatal(ast->line, "pointers are not allowed in this context (yet)");
+            fatal(ast->loc, "pointers are not allowed in this context (yet)");
             unreachable();
             return 0;
     }
 
     const char *op_name = op_to_name(ast->tag);
     if (op_name) {
-        fatal(ast->line, "%s operator is allowed in this context (yet)",
+        fatal(ast->loc, "%s operator is allowed in this context (yet)",
                 op_name);
     }
 
@@ -1189,7 +1189,7 @@ struct expr eval_name_expr(struct type *t, struct ast *ast)
     const char *name = ast_s(ast);
     struct sym *sym = scope_get_sym(current_scope, name);
     if (sym == NULL)
-        fatal(ast->line, "undeclared identifier '%s'", name);
+        fatal(ast->loc, "undeclared identifier '%s'", name);
 
     switch (sym->tag) {
         case DECL_SYM:

@@ -48,7 +48,8 @@
 	X(CASE_TOK, 298) \
 	X(DEFAULT_TOK, 299) \
 	X(FALLTHROUGH_TOK, 300) \
-	X(SWITCH_TOK, 301)
+	X(SWITCH_TOK, 301) \
+	X(INCLUDE_TOK, 302)
 
 enum tok {
 #define member(name, val) name = val,
@@ -58,7 +59,7 @@ enum tok {
 
 typedef struct yylval_type yylval_type;
 struct yylval_type {
-    size_t linenr;
+    struct loc *linenr;
     union {
         long long i;
         char *s;
@@ -73,6 +74,9 @@ extern FILE *yyin;
 
 int yylex(void);
 int yylex_destroy(void);
+
+extern char *lex_filepath;
+extern int linenr;
 
 const char *tok_name(enum tok tok);
 

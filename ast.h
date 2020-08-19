@@ -9,6 +9,7 @@
     X(CONTINUE_STMT, 0x0004) \
     X(FALLTHROUGH_STMT, 0x0005) \
     X(VARARG_TYPE, 0x0006) \
+    X(ALREADY_INCLUDED, 0x0007) \
     X(NAME, 0x1000) \
     X(STR_LIT, 0x1001) \
     X(CHAR_LIT, 0x1002) \
@@ -18,6 +19,7 @@
     X(FUNC_DEF, 0x4001) \
     X(TYPE_DEF, 0x4002) \
     X(ALIAS_DEF, 0x4003) \
+    X(INCLUDE, 0x4004) \
     X(BLOCK, 0x4100) \
     X(IF_STMT, 0x4101) \
     X(WHILE_STMT, 0x4102) \
@@ -85,7 +87,7 @@
     X(STMT_LIST, 0x4401) \
     X(EXPR_LIST, 0x4402) \
     X(CASE_LIST, 0x4403) \
-    X(PROGRAM, 0x4502) \
+    X(SOURCE_FILE, 0x4502) \
     X(SYMREF, 0x5000) \
     X(TYPEREF, 0x6000) \
     X(INVALID_AST_TAG, 0xFFFF)
@@ -106,8 +108,8 @@ enum ast_tag {
 // Node without an associated value.
 struct ast {
     enum ast_tag tag;
-    int line;       // Line number in source code.
-    size_t n_refs;  // Reference counter.
+    struct loc *loc; // Line number in source code.
+    size_t n_refs;   // Reference counter.
 };
 
 // Node with a string value.
@@ -170,14 +172,14 @@ static inline bool ast_has_ast(enum ast_tag tag)
 }
 
 // Create new nodes, with associated value.
-struct ast *ast_new(int line, enum ast_tag tag);
-struct ast *ast_new_s(int line, enum ast_tag tag, char *s);
-struct ast *ast_new_i(int line, enum ast_tag tag, long long int i);
-struct ast *ast_new_f(int line, enum ast_tag tag, double f);
-struct ast *ast_new_ast(int line, enum ast_tag tag, size_t n_childs, ...);
+struct ast *ast_new(struct loc *loc, enum ast_tag tag);
+struct ast *ast_new_s(struct loc *loc, enum ast_tag tag, char *s);
+struct ast *ast_new_i(struct loc *loc, enum ast_tag tag, long long int i);
+struct ast *ast_new_f(struct loc *loc, enum ast_tag tag, double f);
+struct ast *ast_new_ast(struct loc *loc, enum ast_tag tag, size_t n_childs, ...);
 
 // Create a node with the children from the nodes in the ast_list.
-struct ast *ast_new_list(int line, enum ast_tag tag, struct ast_list *ast_list);
+struct ast *ast_new_list(struct loc *loc, enum ast_tag tag, struct ast_list *ast_list);
 
 // Create new node in linked list of nodes.
 struct ast_list *ast_list_new(struct ast *ast);
@@ -206,5 +208,12 @@ const char *ast_tag_name(enum ast_tag tag);
 
 // Print the AST.
 void ast_print(struct ast *ast, int indent);
+
+// Print the AST.
+void ast_print(struct ast *ast, int indent);
+
+struct ast **ast_asts(struct ast *ast, size_t *n_childs);
+
+bool ast_equals(struct ast *a, struct ast *b);
 
 #endif // !defined AST_H

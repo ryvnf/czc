@@ -33,12 +33,12 @@ struct strmap *zc_func_labels;
 
 void unrecognized_opt(const char *opt)
 {
-    fatal(-1, "unrecognized command line option '%s'\n", opt);
+    fatal(NULL, "unrecognized command line option '%s'\n", opt);
 }
 
 void missing_arg_for_opt(const char *opt)
 {
-    fatal(-1, "missing argument for option '%s'\n", opt);
+    fatal(NULL, "missing argument for option '%s'\n", opt);
 }
 
 char *get_file_ext(const char *filename)
@@ -78,13 +78,9 @@ struct arg_list *arg_list_new(const char *arg)
 // Generate C code for file name and output to file handle.
 void gen_input_file(const char *file_name, FILE *output_fp)
 {
-    FILE *input_fp = fopen(file_name, "r"); 
-    
-    struct ast *ast = parse(input_fp);
+    struct ast *ast = parse(file_name);
 
     codegen_to_file(ast, output_fp);
-
-    fclose(input_fp);
 }
 
 // Generate C code for source files and output to file name.
@@ -125,14 +121,8 @@ void print_ast_files(struct arg_list *src_files)
 {
     for (struct arg_list *i = src_files; i != NULL; i = i->next) {
         printf("--- FILE %s ---\n", i->arg);
-        FILE *fp = fopen(i->arg, "r");
-        if (!fp) {
-            perror(i->arg);
-            exit(1);
-        }
-        struct ast *ast = parse(fp);
+        struct ast *ast = parse(i->arg);
         ast_print(ast, 0);
-        fclose(fp);
     }
 }
 
@@ -348,13 +338,13 @@ int main(int argc, char **argv)
     }
 
     if (input_file_count == 0) {
-        fatal(-1, "no input files");
+        fatal(NULL, "no input files");
         exit(1);
     }
 
 
     if (out != NULL && input_file_count != 1 && mode != TO_EXE) {
-        fatal(-1, "cannot specify '-o' with '-c', '-S', or '-C' with "
+        fatal(NULL, "cannot specify '-o' with '-c', '-S', or '-C' with "
                 "multiple files\n");
         exit(1);
     }
