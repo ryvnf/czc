@@ -142,15 +142,23 @@ void invoke_gcc(struct arg_list *src_files, struct arg_list *gcc_args,
     // remove them after compilation).
     struct arg_list **tmp_files = gcc_args_tailp;
 
+    char tmp_dir[] = "/tmp/czc.XXXXXX";
+    if (mkdtemp(tmp_dir) == NULL)
+        perror("mkdtemp");
+
     for (struct arg_list *i = src_files; i != NULL; i = i->next) {
-        char c_file_name[] = "/tmp/czc.XXXXXX.c";
-        int fd;
-        
-        if ((fd = mkstemps(c_file_name, 2)) < 0)
-            perror("mkstemp");
+        // Remove file ext from argument
+        char *arg = strdup(i->arg);
+        char *arg_ext = get_file_ext(arg);
+        if (arg_ext != NULL)
+            arg_ext[-1] = '\0';
+
+        size_t n = strlen(tmp_dir) + 1 + strlen(arg) + 2;
+        char c_file_name[n + 1];
+        snprintf(c_file_name, sizeof c_file_name, "%s/%s.c", tmp_dir, arg);
 
         FILE *fp;
-        if ((fp = fdopen(fd, "w")) == NULL)
+        if ((fp = fopen(c_file_name, "w")) == NULL)
             perror("fdopen");
 
         printf("%s\n", i->arg);
@@ -363,6 +371,8 @@ int main(int argc, char **argv)
         } else {
             invoke_gcc(src_files, gcc_args, gcc_args_tailp);
         }
+    } else {
+        invoke_gcc(src_files, gcc_args, gcc_args_tailp);
     }
 
     arg_list_del(src_files);
