@@ -51,6 +51,12 @@ extern struct scope *global_scope;
 // Return type of current function being generated
 extern struct type *zc_func_ret_type;
 
+// The global type declarations
+extern struct rope *zc_type_decls_rope;
+
+// The global type definitions
+extern struct rope *zc_type_defs_rope;
+
 // The global variable/function declarations
 extern struct rope *zc_prog_decls_rope;
 

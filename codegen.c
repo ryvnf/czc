@@ -664,11 +664,11 @@ void add_struct_def(struct struct_type *type)
     struct rope *rope = NULL;
     rope = struct_def_to_c(type);
     rope = rope_new_tree(rope, semi_nl_rope);
-    zc_prog_defs_rope = rope_new_tree(zc_prog_defs_rope, rope);
+    zc_type_defs_rope = rope_new_tree(zc_type_defs_rope, rope);
 
     rope = struct_type_to_c(NULL, type);
     rope = rope_new_tree(rope, semi_nl_rope);
-    zc_prog_decls_rope = rope_new_tree(zc_prog_decls_rope, rope);
+    zc_type_decls_rope = rope_new_tree(zc_type_decls_rope, rope);
 }
 
 void add_type_decl(struct type *type)
@@ -923,6 +923,8 @@ void codegen_to_file(struct ast *ast, FILE *fp)
 
     current_scope = global_scope = scope_new(predecl_symtbl, 65536, 8192);
 
+    zc_type_decls_rope = NULL;
+    zc_type_defs_rope = NULL;
     zc_prog_decls_rope = NULL;
     zc_prog_defs_rope = NULL;
 
@@ -931,9 +933,11 @@ void codegen_to_file(struct ast *ast, FILE *fp)
 
     ast_unref(ast);
 
-    struct rope *zc_prog_rope = zc_prog_decls_rope;
-    zc_prog_rope = rope_new_tree(zc_prog_rope, zc_prog_defs_rope);
-    rope_print_to_file(zc_prog_rope, fp);
+    struct rope *zc_file_rope = zc_type_decls_rope;
+    zc_file_rope = rope_new_tree(zc_file_rope, zc_type_defs_rope);
+    zc_file_rope = rope_new_tree(zc_file_rope, zc_prog_decls_rope);
+    zc_file_rope = rope_new_tree(zc_file_rope, zc_prog_defs_rope);
+    rope_print_to_file(zc_file_rope, fp);
 }
 
 char *gen_c_ident()
