@@ -11,6 +11,7 @@ struct type *target_type(struct type *wants, struct type *b);
 
 struct type *eval_type(struct type *t, struct ast *ast);
 struct expr eval_expr(struct type *t, struct ast *ast);
+struct expr eval_expr_global(struct type *t, struct ast *ast);
 size_t eval_size(struct ast *ast);
 
 #endif // !define EVAL_H

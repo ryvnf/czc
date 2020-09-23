@@ -1,5 +1,8 @@
 #include "zc.h"
 
+static struct expr eval_expr_(struct type *t, struct ast *ast, bool
+        global_init);
+
 const char *op_to_name(enum ast_tag tag)
 {
     switch (tag) {
@@ -1247,23 +1250,31 @@ struct expr eval_decl_expr(struct ast *ast)
     return eval_name_expr(NULL, name_ast);
 }
 
-struct expr eval_init_expr(struct type *t, struct ast *ast)
+struct expr eval_init_expr(struct type *t, struct ast *ast, bool global_init)
 {
     struct type *type = eval_type(t, ast);
 
     size_t n_childs;
     struct ast **childs = ast_asts(ast, &n_childs);
 
-    struct rope *rope = lparen_rope;
-    rope = rope_new_tree(rope, type_to_c(NULL, t));
-    rope = rope_new_tree(rope, rparen_sp_rope);
-    rope = rope_new_tree(rope, lcurly_sp_rope);
+    struct rope *rope;
+   
+    // If this is not part of a global variable initializer, make this
+    // initializer a compound expression.
+    if (!global_init) {
+        rope = lparen_rope;
+        rope = rope_new_tree(rope, type_to_c(NULL, t));
+        rope = rope_new_tree(rope, rparen_sp_rope);
+        rope = rope_new_tree(rope, lcurly_sp_rope);
+    } else {
+        rope = lcurly_sp_rope;
+    }
 
     if (is_array_type(t)) {
         struct array_type *a_t = array_type(t);
 
         for (size_t i = 0; i < n_childs; i++) {
-            struct expr expr = eval_expr(a_t->of, childs[i]);
+            struct expr expr = eval_expr_(a_t->of, childs[i], global_init);
             rope = rope_new_tree(rope, expr.rope);
 
             if (i != n_childs - 1)
@@ -1275,7 +1286,7 @@ struct expr eval_init_expr(struct type *t, struct ast *ast)
         struct struct_type *s_t = struct_type(t);
 
         for (size_t i = 0; i < n_childs; i++) {
-            struct expr expr = eval_expr(s_t->fields[i].type, childs[i]);
+            struct expr expr = eval_expr_(s_t->fields[i].type, childs[i], global_init);
             rope = rope_new_tree(rope, expr.rope);
 
             if (i != n_childs - 1)
@@ -1290,7 +1301,7 @@ struct expr eval_init_expr(struct type *t, struct ast *ast)
     return (struct expr) { .type = type, .rope = rope };
 }
 
-struct expr eval_expr(struct type *t, struct ast *ast)
+static struct expr eval_expr_(struct type *t, struct ast *ast, bool global_init)
 {
     switch (ast->tag) {
         case COMMA_EXPR:
@@ -1435,7 +1446,17 @@ struct expr eval_expr(struct type *t, struct ast *ast)
             return eval_decl_expr(ast);
 
         case INIT_EXPR:
-            return eval_init_expr(t, ast);
+            return eval_init_expr(t, ast, global_init);
     }
     return (struct expr){ 0 };
+}
+
+struct expr eval_expr(struct type *t, struct ast *ast)
+{
+    return eval_expr_(t, ast, false);
+}
+
+struct expr eval_expr_global(struct type *t, struct ast *ast)
+{
+    return eval_expr_(t, ast, true);
 }

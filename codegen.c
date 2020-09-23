@@ -748,7 +748,7 @@ struct rope *func_def_to_c(struct ast *ast)
 
 struct rope *init_ast_to_c(struct type *type, struct ast *init_ast, size_t nest_level)
 {
-    struct expr expr = eval_expr(type, init_ast);
+    struct expr expr = eval_expr_global(type, init_ast);
 
     // In C ',' and '?:' operators have lower precedence than '='.  Should
     // probably be solved in a cleaner way in the future, until then this
