@@ -1114,8 +1114,17 @@ struct expr eval_sizeof_expr(struct ast *ast)
 
 struct expr eval_cast_expr(struct ast *ast)
 {
-    bug("TODO");
-    return (struct expr){ 0 };
+    // TODO check if cast is legal
+    struct expr expr = eval_expr(NULL, ast_ast(ast, 0));
+    struct rope *rope = lparen_rope;
+    struct type *type = type_from_ast(ast_ast(ast, 1));
+    rope = rope_new_tree(rope, type_to_c(NULL, type));
+    rope = rope_new_tree(rope, rparen_rope);
+    rope = rope_new_tree(rope, lparen_rope);
+    rope = rope_new_tree(rope, expr.rope);
+    rope = rope_new_tree(rope, rparen_rope);
+
+    return (struct expr){ .rope = rope, .type = type };
 }
 
 struct expr eval_call_expr(struct ast *ast)
