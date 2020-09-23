@@ -104,7 +104,7 @@ struct struct_type {
 };
 
 size_t sizeof_basic_type(struct type *type);
-const char *basic_type_c_name(struct type *type);
+const char *basic_type_c_name(struct type *type, bool as_ret_Type);
 
 extern struct type int_type[1];
 extern struct type int8_type[1];

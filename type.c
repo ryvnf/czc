@@ -107,7 +107,7 @@ const char *int_to_c_type(bool is_signed, size_t size)
 }
 
 // Get the C type for a basic type
-const char *basic_type_c_name(struct type *type)
+const char *basic_type_c_name(struct type *type, bool for_abi)
 {
     switch (type->tag & ~LVAL_TYPE_FLAG) {
         case EXTERN_TYPE:
@@ -115,8 +115,14 @@ const char *basic_type_c_name(struct type *type)
             return "void";
 
         case CHAR_TYPE:
-        case BOOL_TYPE:
+            if (for_abi)
+                return "int";
             return "char";
+
+        case BOOL_TYPE:
+            if (for_abi)
+                return "int";
+            return "_Bool";
 
         case UINT_TYPE:
         case UINT8_TYPE:
@@ -124,8 +130,17 @@ const char *basic_type_c_name(struct type *type)
         case UINT32_TYPE:
         case UINT64_TYPE:
         case SIZE_TYPE:
-        case UINTPTR_TYPE:
-            return int_to_c_type(false, sizeof_basic_type(type));
+        case UINTPTR_TYPE: {
+            size_t n = sizeof_basic_type(type);
+
+            if (for_abi) {
+                size_t uint_size = sizeof_basic_type(uint_type);
+                if (n < uint_size)
+                    n = uint_size;
+            }
+
+            return int_to_c_type(false, n);
+        }
 
         case INT_TYPE:
         case INT8_TYPE:
@@ -133,8 +148,16 @@ const char *basic_type_c_name(struct type *type)
         case INT32_TYPE:
         case INT64_TYPE:
         case SSIZE_TYPE:
-        case INTPTR_TYPE:
+        case INTPTR_TYPE: {
+            size_t n = sizeof_basic_type(type);
+
+            if (for_abi) {
+                size_t int_size = sizeof_basic_type(int_type);
+                if (n < int_size)
+                    n = int_size;
+            }
             return int_to_c_type(true, sizeof_basic_type(type));
+        }
 
         case FLOAT_TYPE:
             return "float";

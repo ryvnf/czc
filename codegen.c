@@ -8,6 +8,9 @@ struct lbl {
     struct lbl *next;
 };
 
+static struct rope *type_to_c_(struct rope *decl, struct type *type, bool for_abi);
+static struct rope *abi_type_to_c(struct rope *decl, struct type *type);
+
 // List of labels used so they can be checked against defined labels
 struct lbl *lbl_list = NULL;
 
@@ -129,7 +132,7 @@ struct rope *func_type_to_c(struct rope *decl, struct func_type *type)
             decl = rope_new_tree(decl, void_rope);
     } else {
         for (size_t i = 0; i < type->n_params; ++i) {
-            struct rope *param = type_to_c(NULL, type->params[i]);
+            struct rope *param = abi_type_to_c(NULL, type->params[i]);
             decl = rope_new_tree(decl, param);
 
             if (i != type->n_params - 1)
@@ -143,7 +146,7 @@ struct rope *func_type_to_c(struct rope *decl, struct func_type *type)
 
     decl = rope_new_tree(decl, rparen_rope);
 
-    return type_to_c(decl, type->ret);
+    return abi_type_to_c(decl, type->ret);
 }
 
 struct rope *field_to_c(struct field *field)
@@ -176,14 +179,14 @@ struct rope *struct_type_to_c(struct rope *decl, struct struct_type *type)
     return rope;
 }
 
-struct rope *basic_type_to_c(struct rope *decl, struct type *type)
+struct rope *basic_type_to_c(struct rope *decl, struct type *type, bool for_abi)
 {
     if (decl != NULL)
         decl = rope_new_tree(sp_rope, decl);
-    return rope_new_tree(rope_new_s(basic_type_c_name(type)),  decl);
+    return rope_new_tree(rope_new_s(basic_type_c_name(type, for_abi)), decl);
 }
 
-struct rope *type_to_c(struct rope *decl, struct type *type)
+struct rope *type_to_c_(struct rope *decl, struct type *type, bool for_abi)
 {
     switch (type_type(type->tag)) {
         case PTR_TYPE_FLAG:
@@ -199,10 +202,18 @@ struct rope *type_to_c(struct rope *decl, struct type *type)
         case INT_TYPE_FLAG:
         case FLOAT_TYPE_FLAG:
         case EXTERN_TYPE_FLAG:
-            return basic_type_to_c(decl, type);
+            return basic_type_to_c(decl, type, for_abi);
     }
 
     return NULL;
+}
+
+struct rope *type_to_c(struct rope *decl, struct type *type) {
+    return type_to_c_(decl, type, false);
+}
+
+struct rope *abi_type_to_c(struct rope *decl, struct type *type) {
+    return type_to_c_(decl, type, true);
 }
 
 struct rope *decl_to_c(struct decl_sym *decl)
@@ -725,7 +736,7 @@ struct rope *func_def_to_c(struct ast *ast)
             } else {
                 const char *tmpname = "_";
                 struct type *type = type_from_ast(param_ast);
-                c_param = type_to_c(rope_new_s(tmpname), type);
+                c_param = abi_type_to_c(rope_new_s(tmpname), type);
             }
 
             rope = rope_new_tree(rope, c_param);
@@ -735,7 +746,7 @@ struct rope *func_def_to_c(struct ast *ast)
         }
     }
     rope = rope_new_tree(rope, rparen_rope);
-    rope = type_to_c(rope, func_type(decl->type)->ret);
+    rope = abi_type_to_c(rope, func_type(decl->type)->ret);
     rope = rope_new_tree(rope, sp_rope);
     rope = rope_new_tree(rope, func_body_to_c(block_ast));
     rope = rope_new_tree(rope, nl_rope);
