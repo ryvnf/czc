@@ -6,8 +6,6 @@
 	X(SIZEOF_TOK, 256) \
 	X(AS_TOK, 257) \
 	X(IF_TOK, 258) \
-	X(DO_TOK, 259) \
-	X(WHILE_TOK, 260) \
 	X(FOR_TOK, 261) \
 	X(RETURN_TOK, 262) \
 	X(GOTO_TOK, 263) \

@@ -147,8 +147,10 @@ void invoke_gcc(struct arg_list *src_files, struct arg_list *gcc_args,
         perror("mkdtemp");
 
     for (struct arg_list *i = src_files; i != NULL; i = i->next) {
-        // Remove file ext from argument
-        char *arg = strdup(i->arg);
+        // TODO: This does will not work if compiling dir0/a.zc and dir1/a.zc in
+        //       the same command.  A better solution should be implemented in
+        //       the future.
+        char *arg = basename(strdup(i->arg));
         char *arg_ext = get_file_ext(arg);
         if (arg_ext != NULL)
             arg_ext[-1] = '\0';
@@ -159,7 +161,7 @@ void invoke_gcc(struct arg_list *src_files, struct arg_list *gcc_args,
 
         FILE *fp;
         if ((fp = fopen(c_file_name, "w")) == NULL)
-            perror("fdopen");
+            perror(c_file_name);
 
         printf("%s\n", i->arg);
         gen_input_file(i->arg, fp);

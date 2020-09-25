@@ -4,7 +4,7 @@ getchar() int
 define EOF -1
 
 main(argc int, argv^^ char) int {
-    while (c int = getchar()) != EOF {
+    for (c int = getchar()) != EOF {
         putchar(c)
     }
     return 0

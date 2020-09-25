@@ -826,9 +826,9 @@ err0:
     return NULL;
 }
 
-/* if_stmt : 'if' expr block
- *         | 'if' expr block 'else' block
- *         | 'if' expr block 'else' if_stmt
+/* if_stmt : 'if' expr? block
+ *         | 'if' expr? block 'else' block
+ *         | 'if' expr? block 'else' if_stmt
  */
 static struct ast *parse_if_stmt(struct parse *parse)
 {
@@ -837,9 +837,12 @@ static struct ast *parse_if_stmt(struct parse *parse)
 
     struct loc *line = get_linenr(parse);
 
-    struct ast *expr = parse_expr(parse);
-    if (expr == NULL)
-        goto err0;
+    struct ast *expr = NULL;
+    if (peek_tok(parse)->type != '{') {
+        expr = parse_expr(parse);
+        if (expr == NULL)
+            goto err0;
+    }
 
     struct ast *then_block = parse_block(parse);
     if (then_block == NULL)
@@ -866,97 +869,51 @@ err0:
     return NULL;
 }
 
-/*   while_stmt : 'while' expr block
- */
-static struct ast *parse_while_stmt(struct parse *parse)
-{
-    if (!expect(parse, WHILE_TOK))
-        return NULL;
-
-    struct loc *line = get_linenr(parse);
-
-    struct ast *expr = parse_expr(parse);
-    if (expr == NULL)
-        goto err0;
-
-    struct ast *block = parse_block(parse);
-    if (block == NULL)
-        goto err1;
-
-    return ast_new_ast(line, WHILE_STMT, 2, expr, block);
-
-err1:
-    ast_unref(expr);
-err0:
-    return NULL;
-}
-
-/* do_stmt : 'do' expr block
- *         | 'do' expr block 'while' block
- */
-static struct ast *parse_do_stmt(struct parse *parse)
-{
-    if (!expect(parse, DO_TOK))
-        goto err0;
-
-    struct loc *line = get_linenr(parse);
-
-    struct ast *block = parse_block(parse);
-
-    // check for do while loop
-    if (peek_tok(parse)->type == WHILE_TOK) {
-        parse->pos++;
-
-        struct ast *expr = parse_expr(parse);
-        if (expr == NULL)
-            goto err1;
-
-        return ast_new_ast(line, DO_WHILE_STMT, 2, block, expr);
-    }
-
-    return ast_new_ast(line, CMPND_STMT, 1, block);
-
-err1:
-    ast_unref(block);
-err0:
-    return NULL;
-}
-
-/* for_stmt : 'for' expr? ';' expr? ';' expr? block
+/* for_stmt : 'for' expr? block
+ *          | 'for' expr? ';' expr? ';' expr? block
  */
 static struct ast *parse_for_stmt(struct parse *parse)
 {
     if (!expect(parse, FOR_TOK))
-        goto err0;
+        return NULL;
 
     struct loc *line = get_linenr(parse);
 
-    struct ast *init_expr = parse_expr(parse);
-    if (!expect(parse, ';'))
-        goto err1;
+    struct ast *expr0 = NULL;
+    struct ast *expr1 = NULL;
+    struct ast *expr2 = NULL;
 
-    struct ast *cond_expr = parse_expr(parse);
-    if (!expect(parse, ';'))
-        goto err2;
+    if (peek_tok(parse)->type != '{') {
+        expr0 = parse_expr(parse);
 
-    struct ast *update_expr = NULL;
-    if (peek_tok(parse)->type != '{')
-        update_expr = parse_expr(parse);
+        if (peek_tok(parse)->type == ';') {
+            parse->pos++;
+            expr1 = parse_expr(parse);
+
+            if (!expect(parse, ';')) {
+                ast_unref(expr0);
+                goto err;
+            }
+
+            if (peek_tok(parse)->type != '{')
+                expr2 = parse_expr(parse);
+        } else {
+            // swap expr0 and expr1 so the condition is always in expr1
+            expr1 = expr0;
+            expr0 = NULL;
+        }
+    }
 
     struct ast *block = parse_block(parse);
     if (block == NULL)
-        goto err3;
+        goto err;
 
-    return ast_new_ast(line, FOR_STMT, 4, init_expr, cond_expr, update_expr,
-	    block);
+    return ast_new_ast(line, FOR_STMT, 4, expr0, expr1, expr2, block);
 
-err3:
-    ast_unref(update_expr);
-err2:
-    ast_unref(cond_expr);
-err1:
-    ast_unref(init_expr);
-err0:
+err:
+    ast_unref(expr2);
+    ast_unref(expr1);
+    ast_unref(expr0);
     return NULL;
 }
 
@@ -994,8 +951,7 @@ static struct ast *parse_goto_stmt(struct parse *parse)
 }
 
 /* stmt : if_stmt
- *      | do_stmt
- *      | while_stmt
+ *      | for_stmt
  *      | 'return' expr?
  *      | 'break'
  *      | 'continue'
@@ -1009,12 +965,6 @@ static struct ast *parse_stmt(struct parse *parse)
     {
         case IF_TOK:
             return parse_if_stmt(parse);
-
-        case DO_TOK:
-            return parse_do_stmt(parse);
-
-        case WHILE_TOK:
-            return parse_while_stmt(parse);
 
         case FOR_TOK:
             return parse_for_stmt(parse);

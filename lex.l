@@ -111,14 +111,6 @@ static bool in_comment = false;
     }
 }
 
-"while" {
-    if (!in_comment) {
-	yylval.linenr = loc_new(lex_filepath, linenr);
-	return last_tok = WHILE_TOK;
-    }
-}
-
-
 "for" {
     if (!in_comment) {
 	yylval.linenr = loc_new(lex_filepath, linenr);

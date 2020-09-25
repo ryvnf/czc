@@ -231,16 +231,6 @@ struct rope *expr_stmt_to_c(struct ast *ast)
     return add_indent_nl(rope_new_tree(expr.rope, semi_rope));
 }
 
-struct rope *cmpnd_stmt_to_c(struct ast *ast)
-{
-    push_scope();
-
-    struct rope *rope = block_to_c(ast_ast(ast, 0));
-
-    pop_scope();
-    return add_indent_nl(rope);
-}
-
 struct rope *if_stmt_to_c(struct ast *ast)
 {
     struct rope *rope = if_sp_lparen_rope;
@@ -250,11 +240,15 @@ struct rope *if_stmt_to_c(struct ast *ast)
 
     push_scope();
 
-    struct expr expr = eval_expr(NULL, expr_ast);
-    if (!is_bool_type(expr.type))
-        fatal(NULL, "condition has to be of boolean type");
+    if (expr_ast != NULL) {
+        struct expr expr = eval_expr(NULL, expr_ast);
+        if (!is_bool_type(expr.type))
+            fatal(NULL, "condition has to be of boolean type");
+        rope = rope_new_tree(rope, expr.rope);
+    } else {
+        rope = rope_new_tree(rope, one_rope);
+    }
 
-    rope = rope_new_tree(rope, expr.rope);
     rope = rope_new_tree(rope, rparen_sp_rope);
     rope = rope_new_tree(rope, block_to_c(then_block_ast));
 
@@ -352,55 +346,6 @@ struct rope *switch_stmt_to_c(struct ast *ast)
     rope = rope_new_tree(rope, rparen_sp_rope);
 
     rope = rope_new_tree(rope, switch_block_to_c(block_ast));
-
-    pop_scope();
-
-    return add_indent_nl(rope);
-}
-
-struct rope *while_stmt_to_c(struct ast *ast)
-{
-    struct rope *rope = while_sp_lparen_rope;
-    struct ast *expr_ast = ast_ast(ast, 0);
-    struct ast *block_ast = ast_ast(ast, 1);
-
-    push_scope();
-
-    struct expr expr = eval_expr(NULL, expr_ast);
-    if (!is_bool_type(expr.type))
-        fatal(ast->loc, "condition has to be of boolean type");
-
-    rope = rope_new_tree(rope, expr.rope);
-    rope = rope_new_tree(rope, rparen_sp_rope);
-
-    zc_loop_level++;
-    rope = rope_new_tree(rope, block_to_c(block_ast));
-    zc_loop_level--;
-
-    pop_scope();
-
-    return add_indent_nl(rope);
-}
-
-struct rope *do_while_stmt_to_c(struct ast *ast)
-{
-    struct rope *rope = do_sp_rope;
-    struct ast *block_ast = ast_ast(ast, 0);
-    struct ast *expr_ast = ast_ast(ast, 1);
-
-    push_scope();
-
-    zc_loop_level++;
-    rope = rope_new_tree(rope, block_to_c(block_ast));
-    zc_loop_level--;
-
-    struct expr expr = eval_expr(NULL, expr_ast);
-    if (!is_bool_type(expr.type))
-        fatal(ast->loc, "condition has to be of boolean type");
-
-    rope = rope_new_tree(rope, sp_while_sp_lparen_rope);
-    rope = rope_new_tree(rope, expr.rope);
-    rope = rope_new_tree(rope, rparen_semi_nl_rope);
 
     pop_scope();
 
@@ -542,16 +487,10 @@ struct rope *stmt_to_c(struct ast *ast)
         case ALIAS_DEF:
 	    handle_alias_def(ast);
 	    return NULL;
-        case CMPND_STMT:
-            return cmpnd_stmt_to_c(ast);
         case IF_STMT:
             return if_stmt_to_c(ast);
         case SWITCH_STMT:
             return switch_stmt_to_c(ast);
-        case WHILE_STMT:
-            return while_stmt_to_c(ast);
-        case DO_WHILE_STMT:
-            return do_while_stmt_to_c(ast);
         case FOR_STMT:
             return for_stmt_to_c(ast);
         case RETURN_STMT:
