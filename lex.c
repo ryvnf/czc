@@ -48,15 +48,18 @@ static void appendc(char **s, size_t *n, int c) {
     (*n)++;
 }
 
-bool isident(int c) {
+bool isident(int c)
+{
     return isalpha(c) || c == '_';
 }
 
-bool isidnum(int c) {
+bool isidnum(int c)
+{
     return isalnum(c) || c == '_';
 }
 
-int hexdigit(int *val, int c) {
+int hexdigit(int *val, int c)
+{
     if (c >= '0' && c <= '9') {
         return *val = *val * 16 + c - '0';
     } else if (c >= 'a' && c <= 'f') {
@@ -67,16 +70,31 @@ int hexdigit(int *val, int c) {
     return -1;
 }
 
-int octdigit(int *val, int c) {
+int octdigit(int *val, int c)
+{
     if (c >= '0' && c <= '7') {
         return *val = *val * 8 + c - '0';
     }
     return -1;
 }
 
-int escchar(int quote, FILE *fp) {
+int lex_getc() {
+    int c = getc(yyin);
+    if (c == '\n')
+        linenr++;
+    return c;
+}
+
+int lex_ungetc(int c) {
+    if (c == '\n')
+        linenr--;
+    return ungetc(c, yyin);
+}
+
+int escchar(int quote, FILE *fp)
+{
     int c;
-    while ((c = fgetc(fp)) != EOF) {
+    while ((c = lex_getc()) != EOF) {
         if (c == '\n') {
             fatal(loc_new(lex_filepath, linenr), "missing terminating %c",
                     quote);
@@ -87,17 +105,17 @@ int escchar(int quote, FILE *fp) {
         }
 
         if (c == '\\') {
-            c = fgetc(fp);
+            c = lex_getc();
             if (c == 'x') {
                 int res = 0;
-                if (hexdigit(&res, c = fgetc(fp)) < 0) {
-                    ungetc(c, fp);
+                if (hexdigit(&res, c = lex_getc()) < 0) {
+                    lex_ungetc(c);
                     fatal(loc_new(lex_filepath, linenr),
                             "missing hex digit after \\x");
                     return 0;
                 }
-                if (hexdigit(&res, c = fgetc(fp)) < 0) {
-                    ungetc(c, fp);
+                if (hexdigit(&res, c = lex_getc()) < 0) {
+                    lex_ungetc(c);
                 }
                 return res;
             }
@@ -106,8 +124,8 @@ int escchar(int quote, FILE *fp) {
                 int res = 0;
                 octdigit(&res, c);
                 for (int i = 0; i < 2; i++) {
-                    if (octdigit(&res, c = fgetc(fp)) < 0) {
-                        ungetc(c, fp);
+                    if (octdigit(&res, c = lex_getc()) < 0) {
+                        lex_ungetc(c);
                         break;
                     }
                 }
@@ -142,27 +160,59 @@ int escchar(int quote, FILE *fp) {
     return last_tok = (TOK); \
 } while (false)
 
-int yylex(void) {
+// Return if a semicolon should be automatically inserted depending on the last
+// token.
+bool should_insert_sc(void)
+{
+    switch (last_tok) {
+        case '^':
+        case ')':
+        case ']':
+        case '}':
+        case IDENT_TOK:
+        case STR_TOK:
+        case NUM_TOK:
+        case DEC_TOK:
+        case INC_TOK:
+        case RETURN_TOK:
+        case BREAK_TOK:
+        case CONTINUE_TOK:
+            return true;
+    }
+    return false;
+}
+
+void skip_line_comment(void)
+{
     int c;
-    while ((c = fgetc(yyin)) != EOF) {
+    while ((c = lex_getc()) != EOF) {
+        if (c == '\n')
+            return;
+    }
+}
+
+void skip_block_comment(void)
+{
+    int prev_c = '\0';
+    int c;
+    while ((c = lex_getc()) != EOF) {
+        if (c == '/' && prev_c == '*') {
+            return;
+        }
+        prev_c = c;
+    }
+}
+
+int yylex(void)
+{
+    int c;
+    while ((c = lex_getc()) != EOF) {
         if (isspace(c)) {
             if (c == '\n') {
                 linenr++;
-                switch (last_tok) {
-                    case '^':
-                    case ')':
-                    case ']':
-                    case '}':
-                    case IDENT_TOK:
-                    case STR_TOK:
-                    case NUM_TOK:
-                    case DEC_TOK:
-                    case INC_TOK:
-                    case RETURN_TOK:
-                    case BREAK_TOK:
-                    case CONTINUE_TOK:
-                        RETURN(';');
-                }
+
+                if (should_insert_sc())
+                    RETURN(';');
             }
             continue;
         }
@@ -172,7 +222,7 @@ int yylex(void) {
             char *s = malloc(n);
             appendc(&s, &n, c);
 
-            while (isidnum(c = fgetc(yyin))) {
+            while (isidnum(c = lex_getc())) {
                 appendc(&s, &n, c);
             }
             appendc(&s, &n, '\0');
@@ -194,7 +244,7 @@ int yylex(void) {
             char *s = malloc(n);
             appendc(&s, &n, c);
 
-            while (isidnum(c = fgetc(yyin))) {
+            while (isidnum(c = lex_getc())) {
                 appendc(&s, &n, c);
             }
             appendc(&s, &n, '\0');
@@ -245,16 +295,14 @@ int yylex(void) {
 
         switch (c) {
             case '*':
-            case '/':
             case '%':
             case '~':
             case '=':
             case '!': {
-                int c2 = fgetc(yyin);
+                int c2 = lex_getc();
                 if (c2 == '=') {
                     switch (c) {
                         case '*': RETURN(MUL_ASGN_TOK);
-                        case '/': RETURN(DIV_ASGN_TOK);
                         case '%': RETURN(REM_ASGN_TOK);
                         case '~': RETURN(XOR_ASGN_TOK);
                         case '=': RETURN(EQ_TOK);
@@ -262,22 +310,22 @@ int yylex(void) {
                     }
                     unreachable();
                 }
-                ungetc(c2, yyin);
+                lex_ungetc(c2);
                 break;
             }
 
             case '<':
             case '>': {
-                int c2 = fgetc(yyin);
+                int c2 = lex_getc();
                 if (c2 == c) {
-                    int c3 = fgetc(yyin);
+                    int c3 = lex_getc();
                     if (c3  == '=') {
                         switch (c) {
                             case '<': RETURN(SHL_ASGN_TOK);
                             case '>': RETURN(SHR_ASGN_TOK);
                         }
                     }
-                    ungetc(c3, yyin);
+                    lex_ungetc(c3);
 
                     switch (c) {
                         case '<': RETURN(SHL_TOK);
@@ -289,7 +337,7 @@ int yylex(void) {
                         case '>': RETURN(GE_TOK);
                     }
                 }
-                ungetc(c2, yyin);
+                lex_ungetc(c2);
                 break;
             }
 
@@ -297,7 +345,7 @@ int yylex(void) {
             case '-':
             case '|':
             case '&': {
-                int c2 = fgetc(yyin);
+                int c2 = lex_getc();
                 if (c2 == '=') {
                     switch (c) {
                         case '+': RETURN(ADD_ASGN_TOK);
@@ -313,24 +361,39 @@ int yylex(void) {
                         case '&': RETURN(ANDAND_TOK);
                     }
                 }
-                ungetc(c2, yyin);
+                lex_ungetc(c2);
                 break;
             }
 
             case '.': {
-                int c2 = fgetc(yyin);
+                int c2 = lex_getc();
                 if (c2 == '.') {
-                    int c3 = fgetc(yyin);
+                    int c3 = lex_getc();
                     if (c3 == '.') {
                         RETURN(ELLIPSIS_TOK);
                     }
-                    ungetc(c3, yyin);
+                    lex_ungetc(c3);
 
                     RETURN(STRCAT_TOK);
                 }
-                ungetc(c2, yyin);
+                lex_ungetc(c2);
                 break;
-           }
+            }
+
+            case '/': {
+                int c2 = lex_getc();
+                if (c2 == '=') {
+                    return DIV_ASGN_TOK;
+                } else if (c2 == '/') {
+                    skip_line_comment();
+                    continue;
+                } else if (c2 == '*') {
+                    skip_block_comment();
+                    continue;
+                }
+                lex_ungetc(c2);
+                break;
+            }
         }
 
         RETURN(c);
