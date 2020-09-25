@@ -1,18 +1,20 @@
-# Compiler for a language in the spirit of C
+# Compiler for a new language in the spirit of C
 
-This is an implementation of a compiler for a modern programming language in
-the spirit of C.  The language is currently unnamed, but is the result of a
-hobby project to create a better version of C by completely redesigning it.
-The new language is supposed to have the same level of abstractions as C and
-focus on improving it by having a nicer and more concise syntax and improving
-its semantics.  The compiler is written in C and also uses C as an intermediate
+This is an implementation of a compiler for a new programming language in the
+spirit of C.  The language is currently unnamed, but is the result of a hobby
+project to create a better version of C by completely redesigning it.  The new
+language is supposed to have the same level of abstractions as C and focus on
+improving it by having a nicer and more concise syntax and improving its
+semantics.  This compiler is written in C and also uses C as an intermediate
 language for compilation.
 
 ## Design goals
 
+The programming language should:
+
 * Preserve the spirit of C
-* Only change minor things like syntax and semantics
-* Create an aesthetically beautiful language
+* Look and feel familiar to C programmers
+* Be a very small and simple language which is easy to learn
 
 ## Features
 
@@ -21,9 +23,10 @@ language for compilation.
 * Types and variables have different name spaces
 * Declarations are expressions
 * Expression aliases to replace C's preprocessor macros
-* Unambiguous grammar
+* Explicit case fall through in switch statements
 * Fixed precedence levels of the bitwise operators `&`, `^`, and `|`
 * Stronger type system compared to C
+* Fully ABI compatible with C
 
 ## Build and install 
 
@@ -70,9 +73,10 @@ This will create a C file called `a.c` from the source file `a.z`.  It is
 possible to combine the `--to-c` flag with the `-o` flag to specify which file
 to write the C code to.
 
-It is also possible to use the `-f<feature>`, `-O<optimization-level>`,
-`-l<library>`, `-L<directory>`, and `-S` flags from GCC.  Refer to GCC's
-documentation to find out what those options does.
+The flag `--print-ast` can also be used to output the abstract syntax tree used
+internally for compilation.  It is also possible to use the `-f<feature>`,
+`-O<optimization-level>`, `-l<library>`, `-L<directory>`, and `-S` flags from
+GCC.  Refer to GCC's documentation to find out what those options does.
 
 ## Documentation
 
@@ -90,3 +94,24 @@ programs are:
 | `cat.z`     | Minimal implementation of the command `cat`  |
 | `sort.z`    | Minimal implementation of the command `sort` |
 | `life.z`    | Implementation of Conway's game of life      |
+
+## Notes on the implementation
+
+This compiler implementation is not meant to be a long term solution for
+compiling the language.
+
+One of the shortcuts which were taken in its implementation is that the compiler
+will not evaluate expressions.  Instead it will represent expressions internally
+as C code which gets inserted directly into the generated code.  The structure
+used to represent expressions is also tagged with a type so type checking can be
+performed.
+
+The only expressions which are evaluated by the compiler are expressions which
+occur in "constant contexts" which are expressions used for a `case` in a
+`switch` statement or to define array bounds.  These expressions are more
+limited than regular expressions, and can only involve simple integer arithmetic
+and the `sizeof` operator.
+
+The compiler is usable and gives meaningful error messages.  It works well for
+trying out the language.  The plan is to use it to bootstrap a better
+self-hosting compiler in the future.
