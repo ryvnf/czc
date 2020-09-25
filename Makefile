@@ -7,8 +7,8 @@ CFLAGS=-g3 -Wall -Wno-switch -Wno-unused-variable
 LFLAGS=--nounistd
 PREFIX=/usr/local
 
-SRC=$(wildcard *.c) lex.yy.c
-OBJ=$(patsubst %.c,%.o,$(SRC)) lex.yy.o
+SRC=$(wildcard *.c)
+OBJ=$(patsubst %.c,%.o,$(SRC))
 BIN=czc
 
 .PHONY: all
@@ -19,16 +19,6 @@ $(BIN): $(OBJ)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $^
-
-lex.yy.o: lex.yy.c
-	$(CC) $(CFLAGS) -w -o $@ -c $^
-
-ifeq (,$(shell which $(LEX)))
-$(warning "Cannot update lex.yy.c because $(LEX) is not available")
-else
-lex.yy.c: lex.l
-	$(LEX) $(LFLAGS) $<
-endif
 
 .PHONY: install
 install:

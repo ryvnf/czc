@@ -11,8 +11,6 @@
     X(VARARG_TYPE, 0x0006) \
     X(ALREADY_INCLUDED, 0x0007) \
     X(NAME, 0x1000) \
-    X(STR_LIT, 0x1001) \
-    X(CHAR_LIT, 0x1002) \
     X(INT_CONST, 0x2000) \
     X(FLOAT_CONST, 0x3000) \
     X(DECL, 0x4000) \
@@ -88,8 +86,7 @@
     X(EXPR_LIST, 0x4402) \
     X(CASE_LIST, 0x4403) \
     X(SOURCE_FILE, 0x4502) \
-    X(SYMREF, 0x5000) \
-    X(TYPEREF, 0x6000) \
+    X(STR_LIT, 0x5000) \
     X(INVALID_AST_TAG, 0xFFFF)
 
 enum ast_tag {
@@ -99,6 +96,7 @@ enum ast_tag {
     AST_I = 0x2000,
     AST_F = 0x3000,
     AST_AST = 0x4000,
+    AST_CHARS = 0x5000,
 
 #define enum_def(NAME, VAL) NAME = VAL,
     EXPAND_AST_TAGS(enum_def)
@@ -116,6 +114,13 @@ struct ast {
 struct ast_s {
     struct ast ast;
     char *s;
+};
+
+// Node with a character array value.
+struct ast_chars {
+    struct ast ast;
+    char *s;
+    size_t n;
 };
 
 // Node with an integer value.
@@ -156,6 +161,11 @@ static inline bool ast_has_s(enum ast_tag tag)
     return ast_val_type(tag) == AST_S;
 }
 
+static inline bool ast_has_chars(enum ast_tag tag)
+{
+    return ast_val_type(tag) == AST_CHARS;
+}
+
 static inline bool ast_has_i(enum ast_tag tag)
 {
     return ast_val_type(tag) == AST_I;
@@ -174,6 +184,7 @@ static inline bool ast_has_ast(enum ast_tag tag)
 // Create new nodes, with associated value.
 struct ast *ast_new(struct loc *loc, enum ast_tag tag);
 struct ast *ast_new_s(struct loc *loc, enum ast_tag tag, char *s);
+struct ast *ast_new_chars(struct loc *loc, enum ast_tag tag, char *s, size_t n);
 struct ast *ast_new_i(struct loc *loc, enum ast_tag tag, long long int i);
 struct ast *ast_new_f(struct loc *loc, enum ast_tag tag, double f);
 struct ast *ast_new_ast(struct loc *loc, enum ast_tag tag, size_t n_childs, ...);
@@ -191,6 +202,7 @@ void ast_list_del(struct ast_list *ast_list);
 const char *ast_s(struct ast *ast);
 long long ast_i(struct ast *ast);
 double ast_f(struct ast *ast);
+const char *ast_chars(struct ast *ast, size_t *n);
 
 // Get the child node with index of a node.
 struct ast *ast_ast(struct ast *ast, size_t index);

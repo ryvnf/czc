@@ -68,7 +68,6 @@ static struct parse *tokenize(const char *filepath)
             break;
         }
     }
-    yylex_destroy();
     fclose(fp);
 
     return parse;
@@ -99,7 +98,7 @@ static void parse_del(struct parse *parse)
         switch (parse->tokens[i].type) {
             case IDENT_TOK:
             case STR_TOK:
-                free(parse->tokens[i].val.u.s);
+                free(parse->tokens[i].val.u.chars.s);
         }
     }
     if (parse->nest_include_level == 0)
@@ -237,7 +236,7 @@ static struct ast *parse_include(struct parse *parser)
     if (peek_tok(parser)->type != STR_TOK)
         syntax_error(parser);
 
-    const char *path = get_tok(parser)->val.u.s;
+    const char *path = get_tok(parser)->val.u.chars.s;
 
     // include file
     if (strmap_get(parser->included_files, path) == NULL) {
@@ -314,10 +313,8 @@ static struct ast *parse_primary_expr(struct parse *parse)
             return ast_new_f(line, FLOAT_CONST, get_tok(parse)->val.u.f);
         }
         case STR_TOK: {
-            return ast_new_s(line, STR_LIT, get_tok(parse)->val.u.s);
-        }
-        case CHAR_TOK: {
-            return ast_new_s(line, CHAR_LIT, get_tok(parse)->val.u.s);
+            yylval_type *tok = &get_tok(parse)->val;
+            return ast_new_chars(line, STR_LIT, tok->u.chars.s, tok->u.chars.n);
         }
         case '(': {
             return parse_enclosed(parse, '(', parse_expr, ')', false);

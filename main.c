@@ -115,7 +115,6 @@ void gen_c(struct arg_list *src_files, char *out)
             exit(1);
         }
         
-        printf("%s\n", i->arg);
         gen_input_file(i->arg, fp);
         fclose(fp);
         free(c_file_name);
@@ -163,7 +162,6 @@ void invoke_gcc(struct arg_list *src_files, struct arg_list *gcc_args,
         if ((fp = fopen(c_file_name, "w")) == NULL)
             perror(c_file_name);
 
-        printf("%s\n", i->arg);
         gen_input_file(i->arg, fp);
 
         *gcc_args_tailp = arg_list_new(c_file_name);
@@ -204,15 +202,6 @@ void invoke_gcc(struct arg_list *src_files, struct arg_list *gcc_args,
     // Remove the created temporary files.
     for (struct arg_list *i = *tmp_files; i != NULL; i = i->next)
         unlink(i->arg);
-}
-
-void arg_list_print(const struct arg_list *args)
-{
-    if (args == NULL)
-        return;
-
-    printf("%s ", args->arg);
-    arg_list_print(args->next);
 }
 
 int main(int argc, char **argv)

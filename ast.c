@@ -19,6 +19,17 @@ struct ast *ast_new_s(struct loc *loc, enum ast_tag tag, char *s)
     return (struct ast *)ast;
 }
 
+// Create a node with character array value.
+struct ast *ast_new_chars(struct loc *loc, enum ast_tag tag, char *s, size_t n)
+{
+    struct ast_chars *ast = malloc(sizeof *ast);
+    ast->ast.tag = tag;
+    ast->ast.loc = loc;
+    ast->s = strdup(s);
+    ast->n = n;
+    return (struct ast *)ast;
+}
+
 // Create a node with integer value.
 struct ast *ast_new_i(struct loc *loc, enum ast_tag tag, long long int i)
 {
@@ -103,6 +114,15 @@ const char *ast_s(struct ast *ast)
 {
     assert(ast_has_s(ast->tag));
     return ((struct ast_s *)ast)->s;
+}
+
+// Get character array value of a node.
+const char *ast_chars(struct ast *ast, size_t *n)
+{
+    assert(ast_has_chars(ast->tag));
+    struct ast_chars *a = (struct ast_chars *)ast;
+    *n = a->n;
+    return a->s;
 }
 
 // Get integer value of a node.
@@ -200,6 +220,9 @@ void ast_print(struct ast *ast, int indent)
             printf("%s\n", ast_tag_name(ast->tag));
             ast_print_childs(ast, indent);
             break;
+        case AST_CHARS:
+            printf("%s <CHARS>\n", ast_tag_name(ast->tag));
+            break;
     }
 }
 
@@ -231,6 +254,16 @@ bool ast_equals(struct ast *a, struct ast *b)
             }
 
             return true;
+        }
+        case AST_CHARS: {
+            size_t a_n, b_n;
+            const char *a_s = ast_chars(a, &a_n);
+            const char *b_s = ast_chars(b, &b_n);
+
+            if (a_n != b_n)
+                return false;
+
+            return memcmp(a_s, b_s, a_n) == 0;
         }
     }
 

@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/wait.h>
+#include <ctype.h>
 
 #include "loc.h"
 #include "ast.h"
@@ -27,6 +28,8 @@
 #include "codegen.h"
 #include "scope.h"
 #include "zc.h"
+
+#define ARRAY_LEN(A) (sizeof (A) / sizeof (*A))
 
 // The amount of nested loops (used to know when continue or break is allowed)
 extern int zc_loop_level;

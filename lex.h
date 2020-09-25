@@ -41,13 +41,13 @@
         X(TRUE_TOK, 293) \
         X(FALSE_TOK, 294) \
         X(DEFINE_TOK, 295) \
-        X(CHAR_TOK, 296) \
 	X(FLOAT_NUM_TOK, 297) \
 	X(CASE_TOK, 298) \
 	X(DEFAULT_TOK, 299) \
 	X(FALLTHROUGH_TOK, 300) \
 	X(SWITCH_TOK, 301) \
-	X(INCLUDE_TOK, 302)
+	X(INCLUDE_TOK, 302) \
+	X(STRCAT_TOK, 303)
 
 enum tok {
 #define member(name, val) name = val,
@@ -62,12 +62,14 @@ struct yylval_type {
         long long i;
         char *s;
         double f;
+        struct {
+            char *s;
+            size_t n;
+        } chars;
     } u;
 };
 
 extern yylval_type yylval;
-extern yylval_type lval;
-
 extern FILE *yyin;
 
 int yylex(void);

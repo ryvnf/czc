@@ -507,15 +507,9 @@ struct type *eval_member_type(struct ast *ast)
 struct type *eval_str_lit_type(struct ast *ast)
 {
     size_t n_chars = 0;
-    const char *s = ast_s(ast);
+    ast_chars(ast, &n_chars);
 
-    for (size_t i = 0; s[i] != '\0'; ++i) {
-        if (s[i] == '\\')
-            i++;
-        ++n_chars;
-    }
-
-    return new_array_type(char_type, n_chars + 1);
+    return new_array_type(char_type, n_chars);
 }
 
 struct type *eval_name_type(struct type *t, struct ast *ast)
@@ -713,7 +707,6 @@ struct type *eval_type(struct type *t, struct ast *ast)
             break;
 
         case INT_CONST:
-        case CHAR_LIT:
             type = const_int_type;
             break;
 
@@ -1233,19 +1226,43 @@ struct expr eval_float_const_expr(struct ast *ast)
     };
 }
 
-struct expr eval_str_lit_expr(struct ast *ast)
-{
-    return (struct expr) {
-        .type = eval_type(NULL, ast),
-        .rope = rope_new_fmt("\"%s\"", ast_s(ast))
-    };
+static void appendc(char **s, size_t *n, int c) {
+    *s = realloc(*s, *n + 1);
+    (*s)[*n] = c;
+    (*n)++;
 }
 
-struct expr eval_char_lit_expr(struct ast *ast)
+static void appends(char **dst, size_t *n, const char *src) {
+    for (size_t i = 0; src[i] != '\0'; i++)
+        appendc(dst, n, src[i]);
+}
+
+struct expr eval_str_lit_expr(struct ast *ast)
 {
+    size_t n_cstr = 0;
+    char *cstr = malloc(n_cstr);
+
+    size_t n_chars;
+    const char *chars = ast_chars(ast, &n_chars);
+
+    // Build a C string
+    for (size_t i =0; i < n_chars; i++) {
+        char buf[8];
+
+        // All characters except for space and graphical characters gets escaped
+        // using \x.
+        if ((chars[i] != '\\' && isgraph(chars[i])) || chars[i] == ' ')
+            snprintf(buf, sizeof buf, "%c", chars[i]);
+        else
+            snprintf(buf, sizeof buf, "\\x%02X", chars[i]);
+
+        appends(&cstr, &n_cstr, buf);
+        appendc(&cstr, &n_cstr, '\0');
+    }
+
     return (struct expr) {
         .type = eval_type(NULL, ast),
-        .rope = rope_new_fmt("\'%s\'", ast_s(ast))
+        .rope = rope_new_fmt("\"%s\"", cstr)
     };
 }
 
@@ -1435,9 +1452,6 @@ static struct expr eval_expr_(struct type *t, struct ast *ast, bool global_init)
 
         case STR_LIT:
             return eval_str_lit_expr(ast);
-
-        case CHAR_LIT:
-            return eval_char_lit_expr(ast);
 
         case TRUE_CONST:
             return (struct expr) { .rope = one_rope, .type = eval_type(NULL, ast) };
