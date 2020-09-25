@@ -744,7 +744,7 @@ struct type *eval_type(struct type *t, struct ast *ast)
     }
 
     if (type && type_type(type->tag) == SELFREF_TYPE_FLAG)
-        fatal(ast->loc, "type cannot refer to itself in this context");
+        fatal(ast->loc, "type cannot refer to itself in constant context");
 
     return type;
 }
@@ -853,8 +853,8 @@ size_t eval_name_size(struct ast *ast)
         fatal(ast->loc, "undeclared identifier '%s'", name);
 
     if (sym->tag != ALIAS_SYM) {
-        fatal(ast->loc, "accessing variables or functions is allowed in this "
-                "context");
+        fatal(ast->loc, "accessing variables or functions is allowed in "
+                "constant context");
         unreachable();
     }
 
@@ -924,7 +924,7 @@ size_t eval_size(struct ast *ast)
             return 0;
 
         case NULL_TOK:
-            fatal(ast->loc, "pointers are not allowed in this context (yet)");
+            fatal(ast->loc, "pointers are not allowed in constant context (yet)");
             unreachable();
             return 0;
     }

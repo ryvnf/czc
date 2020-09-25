@@ -278,9 +278,9 @@ struct rope *clause_to_c(struct ast *ast)
             for (size_t i = 0; i < n_asts; i++) {
                 rope = rope_new_tree(rope, add_indent(case_sp_rope));
                 
-                struct expr expr = eval_expr(NULL, asts[i]);
+                size_t n = eval_size(asts[i]);
 
-                rope = rope_new_tree(rope, expr.rope);
+                rope = rope_new_tree(rope, rope_new_fmt("%d", n));
                 rope = rope_new_tree(rope, colon_nl_rope);
             }
 
