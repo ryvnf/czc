@@ -91,7 +91,7 @@ int lex_ungetc(int c) {
     return ungetc(c, yyin);
 }
 
-int escchar(int quote, FILE *fp)
+int esc_char(int quote, FILE *fp)
 {
     int c;
     while ((c = lex_getc()) != EOF) {
@@ -186,8 +186,6 @@ int yylex(void)
     int c;
     while ((c = lex_getc()) != EOF) {
         if (isspace(c)) {
-            if (c == '\n')
-                linenr++;
             continue;
         }
 
@@ -200,7 +198,7 @@ int yylex(void)
                 appendc(&s, &n, c);
             }
             appendc(&s, &n, '\0');
-            ungetc(c, yyin);
+            lex_ungetc(c);
 
             for (int i = 0; i < ARRAY_LEN(keywords); i++) {
                 if (strcmp(s, keywords[i].str) == 0) {
@@ -222,7 +220,7 @@ int yylex(void)
                 appendc(&s, &n, c);
             }
             appendc(&s, &n, '\0');
-            ungetc(c, yyin);
+            lex_ungetc(c);
 
             char *p;
             long long res = strtoll(s, &p, 0);
@@ -241,7 +239,7 @@ int yylex(void)
             size_t n = 0;
             char *s = malloc(n);
 
-            while ((c = escchar(quote, yyin)) != EOF) {
+            while ((c = esc_char(quote, yyin)) != EOF) {
                 appendc(&s, &n, c);
             }
 
