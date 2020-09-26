@@ -23,7 +23,7 @@ struct {
     { "goto", GOTO_TOK },
     { "if", IF_TOK },
     { "include", INCLUDE_TOK },
-    { "null", NULL_TOK },
+    { "nil", NULL_TOK },
     { "return", RETURN_TOK },
     { "sizeof", SIZEOF_TOK },
     { "switch", SWITCH_TOK },

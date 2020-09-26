@@ -70,7 +70,7 @@ init() void {
 
 main() int {
     init()
-    srand(time(null))
+    srand(time(nil))
 
     for ;; {
         clear()
