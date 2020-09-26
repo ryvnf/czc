@@ -160,28 +160,6 @@ int escchar(int quote, FILE *fp)
     return last_tok = (TOK); \
 } while (false)
 
-// Return if a semicolon should be automatically inserted depending on the last
-// token.
-bool should_insert_sc(void)
-{
-    switch (last_tok) {
-        case '^':
-        case ')':
-        case ']':
-        case '}':
-        case IDENT_TOK:
-        case STR_TOK:
-        case NUM_TOK:
-        case DEC_TOK:
-        case INC_TOK:
-        case RETURN_TOK:
-        case BREAK_TOK:
-        case CONTINUE_TOK:
-            return true;
-    }
-    return false;
-}
-
 void skip_line_comment(void)
 {
     int c;
@@ -208,12 +186,8 @@ int yylex(void)
     int c;
     while ((c = lex_getc()) != EOF) {
         if (isspace(c)) {
-            if (c == '\n') {
+            if (c == '\n')
                 linenr++;
-
-                if (should_insert_sc())
-                    RETURN(';');
-            }
             continue;
         }
 
@@ -376,6 +350,7 @@ int yylex(void)
 
                     RETURN(STRCAT_TOK);
                 }
+
                 lex_ungetc(c2);
                 break;
             }
@@ -383,7 +358,7 @@ int yylex(void)
             case '/': {
                 int c2 = lex_getc();
                 if (c2 == '=') {
-                    return DIV_ASGN_TOK;
+                    RETURN(DIV_ASGN_TOK);
                 } else if (c2 == '/') {
                     skip_line_comment();
                     continue;

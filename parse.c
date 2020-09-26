@@ -39,6 +39,7 @@ static struct ast *parse_type(struct parse *parse);
 static struct ast *parse_block(struct parse *parse);
 static struct ast *parse_stmt_list(struct parse *parse);
 static struct ast *parse_stmt(struct parse *parse);
+static struct ast *term_semicolon(struct parse *parse, struct ast *ast);
 
 static struct parse *tokenize(const char *filepath)
 {
@@ -151,7 +152,9 @@ err:
 }
 
 // Parse a list of things delimited by a token, like a list of function
-// arguments.
+// arguments.  The delim arguments is used for a delimiter between what is
+// parsed, a trailing delimiter is also allowed at the end.  If the delim
+// argument is -1, the list is parsed without delimeters. 
 static struct ast_list *parse_list(struct parse *parse, enum tok delim,
         struct ast *(*parse_syntax)(struct parse *))
 {
@@ -173,10 +176,11 @@ static struct ast_list *parse_list(struct parse *parse, enum tok delim,
         n_asts++;
         tailp = &(*tailp)->next;
 
-        if (peek_tok(parse)->type != delim)
-            break;
-
-        parse->pos++;
+        if (delim != -1) {
+            if (peek_tok(parse)->type != delim)
+                break;
+            parse->pos++;
+        }
     }
 
     return head;
@@ -206,7 +210,7 @@ static struct ast *parse_type_def(struct parse *parse)
     // If we cannot parse the type (and type becomes NULL), then it is a type
     // declaration to an incomplete type.
 
-    return ast_new_ast(line, TYPE_DEF, 2, name, type);
+    return term_semicolon(parse, ast_new_ast(line, TYPE_DEF, 2, name, type));
 }
 
 // alias_def : 'define' ident expr
@@ -224,7 +228,7 @@ static struct ast *parse_alias_def(struct parse *parse)
     if (expr == NULL)
         return NULL;
 
-    return ast_new_ast(line, ALIAS_DEF, 2, name, expr);
+    return term_semicolon(parse, ast_new_ast(line, ALIAS_DEF, 2, name, expr));
 }
 
 // include : 'include' str_lit
@@ -234,9 +238,12 @@ static struct ast *parse_include(struct parse *parser)
         return NULL;
 
     if (peek_tok(parser)->type != STR_TOK)
-        syntax_error(parser);
+        return NULL;;
 
     const char *path = get_tok(parser)->val.u.chars.s;
+
+    if (!expect(parser, ';'))
+        return NULL;
 
     // include file
     if (strmap_get(parser->included_files, path) == NULL) {
@@ -287,13 +294,6 @@ static struct ast *parse_primary_expr(struct parse *parse)
         case IDENT_TOK: {
             char *ident = get_tok(parse)->val.u.s;
 
-            if (strcmp(ident, "true") == 0)
-                return ast_new(line, TRUE_CONST);
-            else if (strcmp(ident, "false") == 0)
-                return ast_new(line, FALSE_CONST);
-            else if (strcmp(ident, "null") == 0)
-                return ast_new(line, NULL_CONST);
-
             struct ast *name = ast_new_s(line, NAME, ident);
 
             int pos = parse->pos;
@@ -305,6 +305,15 @@ static struct ast *parse_primary_expr(struct parse *parse)
             }
 
             return ast_new_ast(line, DECL, 2, name, type);
+        }
+        case NULL_TOK: {
+            return ast_new_i(line, NULL_CONST, get_tok(parse)->val.u.i);
+        }
+        case TRUE_TOK: {
+            return ast_new_i(line, TRUE_CONST, get_tok(parse)->val.u.i);
+        }
+        case FALSE_TOK: {
+            return ast_new_i(line, FALSE_CONST, get_tok(parse)->val.u.i);
         }
         case NUM_TOK: {
             return ast_new_i(line, INT_CONST, get_tok(parse)->val.u.i);
@@ -914,7 +923,7 @@ err:
     return NULL;
 }
 
-/* label_stmt : name ':' stmt?
+/* label_stmt : name ':' stmt
  */
 static struct ast *parse_label_stmt(struct parse *parse)
 {
@@ -923,9 +932,10 @@ static struct ast *parse_label_stmt(struct parse *parse)
     if (name == NULL)
         return NULL;
 
-    if (!expect(parse, ':'))
+    if (!expect(parse, ';')) {
+        ast_unref(name);
         return NULL;
-
+    }
     struct ast *stmt = parse_stmt(parse);
 
     return ast_new_ast(line, LABEL_STMT, 2, name, stmt);
@@ -977,22 +987,22 @@ static struct ast *parse_stmt(struct parse *parse)
 
         case RETURN_TOK:
             parse->pos++;
-            return ast_new_ast(line, RETURN_STMT, 1, parse_expr(parse));
+            return term_semicolon(parse, ast_new_ast(line, RETURN_STMT, 1, parse_expr(parse)));
 
         case GOTO_TOK:
-            return parse_goto_stmt(parse);
+            return term_semicolon(parse, parse_goto_stmt(parse));
 
         case BREAK_TOK:
             parse->pos++;
-            return ast_new(line, BREAK_STMT);
+            return term_semicolon(parse, ast_new(line, BREAK_STMT));
 
         case CONTINUE_TOK:
             parse->pos++;
-            return ast_new(line, CONTINUE_STMT);
+            return term_semicolon(parse, ast_new(line, CONTINUE_STMT));
 
         case FALLTHROUGH_TOK:
             parse->pos++;
-            return ast_new(line, FALLTHROUGH_STMT);
+            return term_semicolon(parse, ast_new(line, FALLTHROUGH_STMT));
 
         case IDENT_TOK:  {
             size_t pos = parse->pos;
@@ -1006,7 +1016,7 @@ static struct ast *parse_stmt(struct parse *parse)
         }
     }
 
-    return parse_expr(parse);
+    return term_semicolon(parse, parse_expr(parse));
 }
 
 /* param : ident type
@@ -1151,10 +1161,24 @@ static struct ast *parse_type(struct parse *parse)
     return NULL;
 }
 
+/* Checks for a terminating semicolon.  If there is a semicolon, ast is
+ * returned, otherwise NULL is returned.
+ */
+static struct ast *term_semicolon(struct parse *parse, struct ast *ast)
+{
+    if (ast == NULL)
+        return NULL;
+    if (!expect(parse, ';')) {
+        ast_unref(ast);
+        return NULL;
+    }
+    return ast;
+}
+
 static struct ast *parse_stmt_list(struct parse *parse)
 {
     struct loc *line = get_linenr(parse);
-    return ast_new_list(line, STMT_LIST, parse_list(parse, ';', parse_stmt));
+    return ast_new_list(line, STMT_LIST, parse_list(parse, -1, parse_stmt));
 }
 
 /* block : '{' stmt_list '}'
@@ -1179,6 +1203,38 @@ static struct ast *parse_init(struct parse *parse)
         return parse_asgn_expr(parse);
 }
 
+static struct ast *parse_decl_or_def(struct parse *parse)
+{
+    struct loc *line = get_linenr(parse);
+    struct ast *name = ast_new_s(line, NAME, get_tok(parse)->val.u.s);
+
+    bool is_func = peek_tok(parse)->type == '(';
+    struct ast *type = parse_type(parse);
+    if (type == NULL) {
+        ast_unref(name);
+        return NULL;
+    }
+
+    struct ast *decl = ast_new_ast(line, DECL, 2, name, type);
+
+    if (is_func && peek_tok(parse)->type == '{')
+        return ast_new_ast(line, FUNC_DEF, 2, decl, parse_block(parse));
+
+    if (peek_tok(parse)->type == ';') {
+        return term_semicolon(parse, decl);
+    }
+
+    // haven't decided if data definitions should have '=' or not
+    if (peek_tok(parse)->type == '=')
+        parse->pos++;
+
+    struct ast *init = parse_init(parse);
+    if (init == NULL)
+        return NULL;
+
+    return term_semicolon(parse, ast_new_ast(line, ASGN_EXPR, 2, decl, init));
+}
+
 /* extern_def : ident type
  *            | ident type '=' expr
  *            | ident '(' param_list ')' type block
@@ -1188,36 +1244,8 @@ static struct ast *parse_extern_def(struct parse *parse)
 {
     struct loc *line = get_linenr(parse);
     switch (peek_tok(parse)->type) {
-        case IDENT_TOK: {
-            struct ast *name = ast_new_s(line, NAME,
-		    strdup(get_tok(parse)->val.u.s));
-
-            bool is_func = peek_tok(parse)->type == '(';
-            struct ast *type = parse_type(parse);
-            if (type == NULL) {
-                ast_unref(name);
-                return NULL;
-            }
-
-            struct ast *decl = ast_new_ast(line, DECL, 2, name, type);
-
-            if (is_func && peek_tok(parse)->type == '{')
-                return ast_new_ast(line, FUNC_DEF, 2, decl, parse_block(parse));
-
-            if (peek_tok(parse)->type == ';') {
-                return decl;
-            }
-
-            // haven't decided if data definitions should have '=' or not
-            if (peek_tok(parse)->type == '=')
-                parse->pos++;
-
-            struct ast *init = parse_init(parse);
-            if (init == NULL)
-                return NULL;
-
-            return ast_new_ast(line, ASGN_EXPR, 2, decl, init);
-        }
+        case IDENT_TOK:
+            return parse_decl_or_def(parse);
 	case TYPE_TOK:
 	    return parse_type_def(parse);
 	case DEFINE_TOK:
@@ -1235,7 +1263,7 @@ static struct ast *parse_extern_def(struct parse *parse)
 struct ast *parse_program(struct parse *parse)
 {
     struct loc *line = get_linenr(parse);
-    struct ast_list *extern_def_list = parse_list(parse, ';', parse_extern_def);
+    struct ast_list *extern_def_list = parse_list(parse, -1, parse_extern_def);
 
     if (peek_tok(parse)->type != EOF_TOK)
         syntax_error(parse);

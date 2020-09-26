@@ -1,73 +1,73 @@
-type file
-stdin^ file
-fgets(^ char, int, ^ file)^ char
-printf(^ char, ...) int
-strdup(^ char)^ char
-strcmp(^ char, ^ char) int
-malloc(size)^ void
+type file;
+stdin^ file;
+fgets(^ char, int, ^ file)^ char;
+printf(^ char, ...) int;
+strdup(^ char)^ char;
+strcmp(^ char, ^ char) int;
+malloc(size)^ void;
 
-type line { s^ char, next^ line }
+type line { s^ char, next^ line };
 
 main() int {
-    lines^ line = nil
+    lines^ line = nil;
     tailp^^ line = ^lines;
 
     for fgets(s[1024] char, sizeof s, stdin) != nil {
-        tailp^ = malloc(sizeof tailp^^)
-        tailp^^.s = strdup(s)
-        tailp = ^tailp^^.next
+        tailp^ = malloc(sizeof tailp^^);
+        tailp^^.s = strdup(s);
+        tailp = ^tailp^^.next;
     }
-    tailp^ = nil
+    tailp^ = nil;
 
-    sort_lines(^lines)
-    print_lines(lines)
+    sort_lines(^lines);
+    print_lines(lines);
 }
 
 print_lines(lines^ line) void {
     for i^ line = lines; i != nil; i = i^.next {
-        printf("%s", i^.s)
+        printf("%s", i^.s);
     }
 }
 
 sort_lines(lines^^ line) void {
-    left^ line = lines^
+    left^ line = lines^;
 
-    if left == nil || left^.next == nil { return }
+    if left == nil || left^.next == nil { return; }
 
-    mid^ line = find_mid(left)
-    right^ line = mid^.next
-    mid^.next = nil
+    mid^ line = find_mid(left);
+    right^ line = mid^.next;
+    mid^.next = nil;
 
-    sort_lines(^left)
-    sort_lines(^right)
+    sort_lines(^left);
+    sort_lines(^right);
 
-    lines^ = merge_lines(left, right)
+    lines^ = merge_lines(left, right);
 }
 
 find_mid(lines^ line)^ line {
-    p^ line = lines
-    q^ line = lines
+    p^ line = lines;
+    q^ line = lines;
 
     for q != nil && q^.next != nil && q^.next^.next != nil {
-        p = p^.next
-        q = q^.next^.next
+        p = p^.next;
+        q = q^.next^.next;
     }
 
-    return p
+    return p;
 }
 
 merge_lines(a^ line, b^ line)^ line {
-    if a == nil { return b }
-    if b == nil { return a }
+    if a == nil { return b; }
+    if b == nil { return a; }
 
-    start^ line
+    start^ line;
     if strcmp(a^.s, b^.s) < 0 {
-        start = a
-        a^.next = merge_lines(a^.next, b)
+        start = a;
+        a^.next = merge_lines(a^.next, b);
     } else {
-        start = b
-        b^.next = merge_lines(a, b^.next)
+        start = b;
+        b^.next = merge_lines(a, b^.next);
     }
 
-    return start
+    return start;
 }

@@ -1,11 +1,11 @@
-putchar(int) int
-getchar() int
+putchar(int) int;
+getchar() int;
 
-define EOF -1
+define EOF -1;
 
 main(argc int, argv^^ char) int {
     for (c int = getchar()) != EOF {
-        putchar(c)
+        putchar(c);
     }
-    return 0
+    return 0;
 }

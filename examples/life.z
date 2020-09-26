@@ -1,83 +1,83 @@
-printf(^ char, ...) int
-putchar(int) int
-rand() int
-usleep(int) int
-time(^ int) int
-srand(int) void
+printf(^ char, ...) int;
+putchar(int) int;
+rand() int;
+usleep(int) int;
+time(^ int) int;
+srand(int) void;
 
-define HEIGHT 24
-define WIDTH 80
+define HEIGHT 24;
+define WIDTH 80;
 
-grid[HEIGHT][WIDTH] bool {}
-next[HEIGHT][WIDTH] bool {}
+grid[HEIGHT][WIDTH] bool {};
+next[HEIGHT][WIDTH] bool {};
 
 countneigh(y int, x int) int {
-    count int = 0
+    count int = 0;
     for i int = y - 1; i <= y + 1; i++ {
         if i < 0 || i >= HEIGHT {
-            continue
+            continue;
         }
         for j int = x - 1; j <= x + 1; j++ {
             if j < 0 || j >= WIDTH {
-                continue
+                continue;
             }
             if grid[i][j] {
-                ++count
+                ++count;
             }
         }
     }
     if grid[y][x] {
-        --count
+        --count;
     }
-    return count
+    return count;
 }
 
 evolve() void {
     for i int = 0; i < HEIGHT; i++ {
         for j int = 0; j < WIDTH; j++ {
-            count int = countneigh(i, j)
-            next[i][j] = count == 3 || count == 2 && grid[i][j]
+            count int = countneigh(i, j);
+            next[i][j] = count == 3 || count == 2 && grid[i][j];
         }
     }
 
     for i int = 0; i < HEIGHT; i++ {
         for j int = 0; j < WIDTH; j++ {
-            grid[i][j] = next[i][j]
+            grid[i][j] = next[i][j];
         }
     }
 }
 
 clear() void {
-    printf("\x1b[2J")
+    printf("\x1b[2J");
 }
 
 display() void {
     for i int = 0; i < HEIGHT; i++ {
         for j int = 0; j < WIDTH; j++ {
-            putchar(grid[i][j] ? 'O' : ' ')
+            putchar(grid[i][j] ? 'O' : ' ');
         }
-        putchar('\n')
+        putchar('\n');
     }
 }
 
 init() void {
     for i int = 0; i < HEIGHT; i++ {
         for j int = 0; j < WIDTH; j++ {
-            grid[i][j] = rand() % 4 == 0
+            grid[i][j] = rand() % 4 == 0;
         }
     }
 }
 
 main() int {
-    init()
-    srand(time(nil))
+    init();
+    srand(time(nil));
 
     for ;; {
-        clear()
-        display()
+        clear();
+        display();
         usleep(250000);
-        evolve()
+        evolve();
     }
 
-    return 0
+    return 0;
 }
