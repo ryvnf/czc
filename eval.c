@@ -978,7 +978,7 @@ struct expr eval_asgn_expr(struct ast *ast)
     rope = rope_new_tree(rope, asgn_binop_rope);
     rope = rope_new_tree(rope, rhs_expr.rope);
 
-    return (struct expr) { 
+    return (struct expr) {
         .rope = rope,
         .type = eval_type(NULL, ast)
     };
@@ -1005,7 +1005,7 @@ struct expr eval_comma_expr(struct type *t, struct ast *ast)
     rope = rope_new_tree(rope, comma_sp_rope);
     rope = rope_new_tree(rope, rhs_expr.rope);
 
-    return (struct expr) { 
+    return (struct expr) {
         .rope = rope,
         .type = eval_type(NULL, ast)
     };
@@ -1033,7 +1033,7 @@ struct expr eval_binop_expr(struct ast *ast, struct rope *c_op)
     rope = rope_new_tree(rope, c_op);
     rope = rope_new_tree(rope, rhs_expr.rope);
 
-    return (struct expr) { 
+    return (struct expr) {
         .rope = rope,
         .type = eval_type(NULL, ast)
     };
@@ -1046,7 +1046,7 @@ struct expr eval_preop_expr(struct ast *ast, struct rope *c_op)
     if (get_c_prec(expr_ast->tag) < get_c_prec(ast->tag))
         expr.rope = add_paren(expr.rope);
 
-    return (struct expr) { 
+    return (struct expr) {
         .rope = rope_new_tree(c_op, expr.rope),
         .type = eval_type(NULL, ast)
     };
@@ -1059,7 +1059,7 @@ struct expr eval_postop_expr(struct ast *ast, struct rope *c_op)
     if (get_c_prec(expr_ast->tag) < get_c_prec(ast->tag))
         expr.rope = add_paren(expr.rope);
 
-    return (struct expr) { 
+    return (struct expr) {
         .rope = rope_new_tree(expr.rope, c_op),
         .type = eval_type(NULL, ast)
     };
@@ -1135,7 +1135,11 @@ struct expr eval_call_expr(struct ast *ast)
     struct func_type *called_type = func_type(called_expr.type);
 
     for (size_t i = 0; i < n_arg_asts; i++) {
-        struct expr arg_expr = eval_expr(called_type->params[i], arg_asts[i]);
+        struct expr arg_expr;
+        if (i < called_type->n_params)
+            arg_expr = eval_expr(called_type->params[i], arg_asts[i]);
+        else
+            arg_expr = eval_expr(NULL, arg_asts[i]);
 
         rope = rope_new_tree(rope, arg_expr.rope);
 
@@ -1183,7 +1187,7 @@ struct expr eval_member_expr(struct ast *ast)
     rope = rope_new_tree(rope, dot_rope);
     rope = rope_new_tree(rope, rope_new_s(member_id));
 
-    return (struct expr) { 
+    return (struct expr) {
         .rope = rope,
         .type = eval_type(NULL, ast)
     };
@@ -1284,7 +1288,7 @@ struct expr eval_init_expr(struct type *t, struct ast *ast, bool global_init)
     struct ast **childs = ast_asts(ast, &n_childs);
 
     struct rope *rope;
-   
+
     // If this is not part of a global variable initializer, make this
     // initializer a compound expression.
     if (!global_init) {
