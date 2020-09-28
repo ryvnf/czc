@@ -115,8 +115,10 @@ const char *basic_type_c_name(struct type *type)
             return "void";
 
         case CHAR_TYPE:
-        case BOOL_TYPE:
             return "char";
+
+        case BOOL_TYPE:
+            return "_Bool";
 
         case UINT_TYPE:
         case UINT8_TYPE:
