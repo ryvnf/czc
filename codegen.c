@@ -232,7 +232,7 @@ struct rope *if_stmt_to_c(struct ast *ast)
     if (expr_ast != NULL) {
         struct expr expr = eval_expr(NULL, expr_ast);
         if (!is_bool_type(expr.type))
-            fatal(NULL, "condition has to be of boolean type");
+            fatal(ast->loc, "condition has to be of boolean type");
         rope = rope_new_tree(rope, expr.rope);
     } else {
         rope = rope_new_tree(rope, one_rope);
