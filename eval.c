@@ -1250,19 +1250,21 @@ struct expr eval_str_lit_expr(struct ast *ast)
     const char *chars = ast_chars(ast, &n_chars);
 
     // Build a C string
-    for (size_t i =0; i < n_chars; i++) {
+    for (size_t i = 0; i < n_chars; i++) {
         char buf[8];
 
-        // All characters except for space and graphical characters gets escaped
-        // using \x.
-        if ((chars[i] != '\\' && isgraph(chars[i])) || chars[i] == ' ')
+        if (chars[i] == '\\')
+            snprintf(buf, sizeof buf, "\\\\");
+        else if (chars[i] == '"')
+            snprintf(buf, sizeof buf, "\\\"");
+        else if (isgraph(chars[i]) || chars[i] == ' ')
             snprintf(buf, sizeof buf, "%c", chars[i]);
         else
             snprintf(buf, sizeof buf, "\\x%02X", chars[i]);
 
         appends(&cstr, &n_cstr, buf);
-        appendc(&cstr, &n_cstr, '\0');
     }
+    appendc(&cstr, &n_cstr, '\0');
 
     return (struct expr) {
         .type = eval_type(NULL, ast),
