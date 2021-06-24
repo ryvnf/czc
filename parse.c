@@ -932,7 +932,7 @@ static struct ast *parse_label_stmt(struct parse *parse)
     if (name == NULL)
         return NULL;
 
-    if (!expect(parse, ';')) {
+    if (!expect(parse, ':')) {
         ast_unref(name);
         return NULL;
     }
