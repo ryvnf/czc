@@ -214,6 +214,9 @@ struct rope *decl_to_c(struct decl_sym *decl)
 
 struct rope *expr_stmt_to_c(struct ast *ast)
 {
+    if (ast->tag == INIT_EXPR)
+        return NULL;
+
     struct expr expr = eval_expr(NULL, ast);
     if (ast->tag == DECL)
         return NULL;
