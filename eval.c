@@ -1123,10 +1123,12 @@ struct expr eval_cast_expr(struct ast *ast)
 struct expr eval_call_expr(struct ast *ast)
 {
     struct type *type = eval_type(NULL, ast);
-    struct expr called_expr = eval_expr(NULL, ast_ast(ast, 0));
+    struct ast *called_ast = ast_ast(ast, 0);
+    struct expr called_expr = eval_expr(NULL, called_ast);
+    if (get_c_prec(called_ast->tag) < get_c_prec(ast->tag))
+        called_expr.rope = add_paren(called_expr.rope);
+
     struct rope *rope = called_expr.rope;
-
-
     size_t n_arg_asts;
     struct ast **arg_asts = ast_asts(ast_ast(ast, 1), &n_arg_asts);
 
@@ -1140,6 +1142,8 @@ struct expr eval_call_expr(struct ast *ast)
             arg_expr = eval_expr(called_type->params[i], arg_asts[i]);
         else
             arg_expr = eval_expr(NULL, arg_asts[i]);
+        if (get_c_prec(arg_asts[i]->tag) <= get_c_prec(COMMA_EXPR))
+            arg_expr.rope = add_paren(arg_expr.rope);
 
         rope = rope_new_tree(rope, arg_expr.rope);
 
